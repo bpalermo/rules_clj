@@ -113,6 +113,7 @@ clj_library(name, srcs, deps, runtime_deps, aot, resources, ...)
 clj_binary(name, main, deps, ...)
 clj_test(name, ns, deps, ...)
 clj_repl(name, deps, dirs, ...)
+clj_native_binary(name, binary_name, jar, config, extra_args, ...)
 ```
 
 Two deliberate departures from what a Clojure ruleset usually looks like:
@@ -124,6 +125,75 @@ Two deliberate departures from what a Clojure ruleset usually looks like:
   provides, its sources, and whether it was AOT'd. Downstream rules and the BUILD generator then
   read the graph instead of re-parsing source to rediscover it.
 
+## Native compilation
+
+A Clojure program that has to *start* — a CLI, a protoc or buf plugin, a lambda — pays the
+JVM's startup cost on every invocation, and for a plugin invoked once per file that is the
+difference between usable and not. GraalVM's `native-image` is the answer the ecosystem has
+settled on, so `clj_native_binary` is in scope rather than something users bolt on with shell
+scripts around the build.
+
+It is also the rule with the most to say, because almost nothing about it is the happy path.
+
+### What it needs from the rest of the ruleset
+
+Native compilation is where AOT stops being an optimisation and becomes a correctness
+requirement. `native-image` performs closed-world analysis over bytecode: there is no compiler
+in the produced binary, so a namespace that would be compiled from source at runtime simply
+cannot exist. Concretely, the ruleset must be able to guarantee that
+
+- every reachable namespace is AOT-compiled into the jar, with no `.clj` left to be loaded
+  lazily — the same non-transitive compilation described above, applied transitively at the
+  binary;
+- the entry point is a real class (`:gen-class`), not a `-main` resolved through `clojure.main`;
+- Clojure's static initialisers run at build time (`--initialize-at-build-time`), because they
+  are what construct the namespaces the binary will use;
+- `--no-fallback` is the default, so that an image which *could not* be fully analysed fails
+  the build instead of silently producing a binary that ships a JVM inside it.
+
+The last one matters most: the fallback image works, which is exactly why it is dangerous. A
+rule that allows it by default turns a build error into a mysterious 200MB artifact.
+
+### What it cannot be
+
+**Not hermetic.** `native-image` shells out to the platform toolchain to link the final binary —
+`clang`/`ld` on macOS, `gcc` on Linux — and a scrubbed action environment leaves it unable to
+find one. The action therefore runs `local`, `no-sandbox`, `no-remote`, with the ambient
+environment. That is a real cost and it is stated here rather than discovered later; the
+alternative is a rule that does not work.
+
+**Not routed through apple_support** on macOS. `apple_support.run` puts `SDKROOT` into the
+action environment and Bazel's own `XcodeLocalEnvProvider` then injects it again; Bazel does not
+merge, it crashes — *Multiple entries with same key: SDKROOT*. The rule must invoke the launcher
+directly and touch none of it.
+
+**Not cross-compiled.** GraalVM builds for the host and only the host, so a release covering
+four platforms is four machines. The ruleset's job is to make each of those a normal
+`bazel build`; assembling them into one release is the release workflow's problem, not the
+rule's.
+
+**Not statically linked everywhere.** `--static --libc=musl` produces a binary with no libc
+dependency at all, which is the difference between running on Alpine and not. It is x86_64
+only: `native-image` demands `x86_64-linux-musl-gcc` by name even when running on arm64 with the
+aarch64 toolchain present, so an arm64 static build cannot be produced at all today. The rule
+exposes this as an opt-in flag rather than pretending the platforms are symmetric, and the
+resulting glibc floor of the dynamic builds is a property worth asserting in CI rather than
+inheriting from whatever runner image built it.
+
+### Where GraalVM comes from
+
+Not from `rules_graalvm`. Its newest BCR release is from January 2024 and fails to load on
+Bazel 9 (`name 'JavaInfo' is not defined`), and a BCR module may only depend on modules that are
+themselves in the BCR — so depending on it would make this ruleset unpublishable, and depending
+on a `git_override` of it would make it unpublishable *and* only work from a root module.
+
+`rules_clj` therefore provisions the SDK itself: a repository rule that downloads a pinned
+GraalVM build per platform by SHA, and a `//clojure:native_toolchain_type` that carries it. Two
+details are not obvious and both were learned the hard way — the whole SDK tree has to be an
+action input, because the `native-image` launcher is a symlink into `lib/svm/bin` and resolves
+its `JAVA_HOME` relative to its own location; and registering GraalVM must not substitute it as
+the build's Java toolchain, which is a different thing entirely from having it on disk.
+
 ## Non-goals
 
 - **Windows.** Untested and unclaimed until someone runs it there.
@@ -131,3 +201,7 @@ Two deliberate departures from what a Clojure ruleset usually looks like:
   library to read it.
 - **Being a drop-in replacement** for another ruleset. Migration is a port, and the API is
   designed for what it should be rather than for what an existing one already is.
+- **Cross-compiling native images.** GraalVM cannot, so neither can this. One runner per target
+  platform, and the release process owns stitching them together.
+- **Hermetic native images.** See above: the linker is the platform's. Everything *except* the
+  final link is under Bazel's control, and that is the most that is honestly available.

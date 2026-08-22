@@ -29,6 +29,13 @@ of code rather than adding one:
 The reasoning behind each is in [`docs/design.md`](docs/design.md), including how the no-worker
 bet gets tested rather than assumed.
 
+Scope includes **GraalVM native binaries** (`clj_native_binary`). A Clojure CLI or protoc plugin
+pays JVM startup on every invocation, so producing a native image is part of shipping Clojure
+rather than an afterthought — and it is the rule with the most sharp edges: closed-world
+analysis makes AOT a correctness requirement rather than an optimisation, the final link is not
+hermetic because it is the platform's, and GraalVM does not cross-compile. The design document
+says so plainly instead of finding out later.
+
 ## Development
 
 ```sh
