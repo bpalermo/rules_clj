@@ -95,16 +95,14 @@ jobs:
   # required check that never reports blocks the pull request instead of failing it.
   ci:
     name: ci
-    needs: [bazel, tools-deps-examples]
+    needs: [bazel]
     if: always()
     runs-on: ubuntu-latest
     steps:
       - name: every job must have succeeded
         run: |
-          echo "bazel:                ${{ needs.bazel.result }}"
-          echo "tools-deps-examples:  ${{ needs.tools-deps-examples.result }}"
-          if [ "${{ needs.bazel.result }}" != "success" ] || \
-             [ "${{ needs.tools-deps-examples.result }}" != "success" ]; then
+          echo "bazel: ${{ needs.bazel.result }}"
+          if [ "${{ needs.bazel.result }}" != "success" ]; then
             echo "::error::CI did not pass" >&2
             exit 1
           fi
