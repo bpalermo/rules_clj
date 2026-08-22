@@ -44,6 +44,12 @@ jobs:
       - name: the ruleset
         run: bazel test //...
 
+      # The fallback path. Compiling without the worker is what someone debugging a
+      # misbehaving compile falls back to, so it has to keep working; running the same
+      # tests both ways is the only thing that keeps it honest.
+      - name: without the worker
+        run: bazel test //tests/... --@rules_clj//clojure:worker=false
+
       # examples/ is in .bazelignore: each is its own module, consuming rules_clj the
       # way a stranger would, and is the only place the rules are exercised end to end.
       - name: examples/hello

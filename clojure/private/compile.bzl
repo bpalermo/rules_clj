@@ -92,16 +92,7 @@ def compile_namespaces(
     use_cds = cds_mode != "off"
 
     args = ctx.actions.args()
-    if use_cds:
-        args.add("-XX:SharedArchiveFile=" + ctx.file._cds.path)
-
-        # auto by default: a mismatched archive should cost the speedup, not the build.
-        # `on` makes the action fail instead, which is how CI proves the archive is
-        # actually being mapped rather than quietly ignored.
-        args.add("-Xshare:" + cds_mode)
-    args.add("-cp")
-    args.add(":".join(classpath))
-    args.add("dev.palermo.rulesclj.Aot")
+    args.add("--classpath=" + ":".join(classpath))
     args.add("--output=" + output.path)
 
     # Scratch, deliberately adjacent to the output and deliberately undeclared: the
@@ -110,14 +101,46 @@ def compile_namespaces(
     args.add_all(namespaces, format_each = "--namespace=%s")
     args.add_all(resource_flags, format_each = "--resource=%s")
 
-    # A JDK argfile, because a real project's classpath outgrows ARG_MAX long before
-    # anything else here becomes a problem.
+    # Always a param file, and one that holds exactly the request. Bazel hands its
+    # contents to the worker as the work request, and passes anything left on the command
+    # line to the worker at startup instead — so the JVM flags live in a separate Args.
+    # It also keeps a real project's classpath from outgrowing ARG_MAX in the plain path,
+    # where the JDK reads the same file as an argfile.
     args.use_param_file("@%s", use_always = True)
     args.set_param_file_format("multiline")
 
+    if ctx.attr._worker_mode[BuildSettingInfo].value:
+        # A worker saves JVM startup and a warm JIT, and nothing else: each request still
+        # loads its own Clojure in its own classloader, because a runtime shared between
+        # targets carries one target's namespaces into the next. See Aot.Clojure.
+        ctx.actions.run(
+            executable = ctx.executable._worker,
+            arguments = [args],
+            inputs = depset(srcs + resources, transitive = [dep_jars]),
+            outputs = [output],
+            mnemonic = "ClojureCompile",
+            progress_message = "Compiling %{label}",
+            execution_requirements = {
+                "supports-workers": "1",
+                "requires-worker-protocol": "json",
+            },
+        )
+        return
+
+    java_args = ctx.actions.args()
+    if use_cds:
+        java_args.add("-XX:SharedArchiveFile=" + ctx.file._cds.path)
+
+        # `on` makes a mismatched archive fail the action instead of being ignored, which
+        # is the only way to tell a working archive from one that is silently doing
+        # nothing. See //clojure:cds for why this is off by default.
+        java_args.add("-Xshare:" + cds_mode)
+    java_args.add("-cp", shim.path)
+    java_args.add("dev.palermo.rulesclj.Aot")
+
     ctx.actions.run(
         executable = jdk.java_executable_exec_path,
-        arguments = [args],
+        arguments = [java_args, args],
         inputs = depset(
             srcs + resources + [shim] + ([ctx.file._cds] if use_cds else []),
             transitive = [dep_jars, jdk.files],
@@ -146,4 +169,11 @@ COMPILE_ATTRS = {
         cfg = "exec",
     ),
     "_cds_mode": attr.label(default = Label("//clojure:cds")),
+    "_worker": attr.label(
+        doc = "The compiler as a Bazel persistent worker.",
+        default = Label("//src/main/java/dev/palermo/rulesclj:worker"),
+        executable = True,
+        cfg = "exec",
+    ),
+    "_worker_mode": attr.label(default = Label("//clojure:worker")),
 }

@@ -2,6 +2,8 @@ package dev.palermo.rulesclj;
 
 import java.io.IOException;
 import java.lang.reflect.Method;
+import java.net.URL;
+import java.net.URLClassLoader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -41,10 +43,22 @@ import java.util.stream.Stream;
 public final class Aot {
 
     public static void main(String[] args) throws Exception {
-        Args parsed = Args.parse(args);
+        if (args.length == 1 && args[0].equals("--persistent_worker")) {
+            Worker.serve();
+            return;
+        }
+        compile(Args.parse(args));
+    }
 
+    /**
+     * Compiles one target's worth of namespaces.
+     *
+     * <p>Takes its classpath from the request rather than from the JVM it runs in, which is what
+     * lets the persistent worker serve targets whose classpaths differ — see {@link Worker}.
+     */
+    static void compile(Args parsed) throws Exception {
         if (parsed.warmup) {
-            new Clojure().warmUp();
+            new Clojure(parsed.classpath).warmUp();
             return;
         }
 
@@ -55,20 +69,37 @@ public final class Aot {
                 parsed.classesDir != null
                         ? parsed.classesDir
                         : Files.createTempDirectory("rules_clj_aot");
+        deleteRecursively(classes);
         Files.createDirectories(classes);
 
-        Clojure clojure = new Clojure();
-        for (String namespace : parsed.namespaces) {
-            clojure.compileNamespace(namespace, classes);
-        }
+        Clojure clojure = new Clojure(parsed.classpath);
+        try {
+            for (String namespace : parsed.namespaces) {
+                clojure.compileNamespace(namespace, classes);
+            }
 
-        verifyOnlyRequestedNamespaces(classes, parsed.namespaces);
+            verifyOnlyRequestedNamespaces(classes, parsed.namespaces);
 
-        Map<String, Path> entries = new LinkedHashMap<>(parsed.resources);
-        for (Path classFile : walk(classes)) {
-            entries.put(relative(classes, classFile), classFile);
+            Map<String, Path> entries = new LinkedHashMap<>(parsed.resources);
+            for (Path classFile : walk(classes)) {
+                entries.put(relative(classes, classFile), classFile);
+            }
+            Jars.write(parsed.output, entries);
+        } finally {
+            clojure.close();
         }
-        Jars.write(parsed.output, entries);
+    }
+
+    /** Scratch from a previous request in the same worker must not reach this one's jar. */
+    private static void deleteRecursively(Path root) throws IOException {
+        if (!Files.exists(root)) {
+            return;
+        }
+        try (Stream<Path> stream = Files.walk(root)) {
+            for (Path p : stream.sorted(java.util.Comparator.reverseOrder()).collect(Collectors.toList())) {
+                Files.deleteIfExists(p);
+            }
+        }
     }
 
     /**
@@ -142,18 +173,52 @@ public final class Aot {
         return root.relativize(file).toString().replace(java.io.File.separatorChar, '/');
     }
 
-    /** Reflective access to a Clojure runtime this shim was not compiled against. */
-    private static final class Clojure {
+    /**
+     * A Clojure runtime, loaded per request in a classloader of its own.
+     *
+     * <p>The isolation is not incidental. Clojure's runtime state — loaded namespaces, protocol
+     * implementations, the compiler's own caches — lives in statics belonging to its classes, so a
+     * runtime shared between two targets carries the first target's namespaces into the second.
+     * The two-pass compile depends on knowing exactly what is loaded, and a dirty runtime silently
+     * breaks it: a dependency left over from an earlier target makes the pre-require a no-op, and
+     * whether a namespace gets compiled starts depending on build order.
+     *
+     * <p>A fresh loader per request costs the class loading the worker was supposed to avoid. What
+     * the worker still saves is real but bounded: JVM startup, and a JIT that has already seen this
+     * work. Sharing more than that is possible only by giving up the guarantee above, which is not
+     * a trade this ruleset makes.
+     */
+    private static final class Clojure implements AutoCloseable {
         private final Method invoke1;
         private final Object eval;
         private final Object readString;
+        private final URLClassLoader loader;
+        private final ClassLoader previousContextLoader;
 
-        Clojure() throws Exception {
-            Class<?> api = Class.forName("clojure.java.api.Clojure");
+        Clojure(List<String> classpath) throws Exception {
+            URL[] urls = new URL[classpath.size()];
+            for (int i = 0; i < classpath.size(); i++) {
+                urls[i] = Paths.get(classpath.get(i)).toUri().toURL();
+            }
+
+            // Parent is the platform loader, not the application loader: the shim's own classes
+            // must not be visible to the code being compiled, and a Clojure on the application
+            // classpath would otherwise shadow the one the request asked for.
+            this.loader = new URLClassLoader(urls, ClassLoader.getPlatformClassLoader());
+            this.previousContextLoader = Thread.currentThread().getContextClassLoader();
+            Thread.currentThread().setContextClassLoader(loader);
+
+            Class<?> api = Class.forName("clojure.java.api.Clojure", true, loader);
             Method var = api.getMethod("var", Object.class, Object.class);
-            this.invoke1 = Class.forName("clojure.lang.IFn").getMethod("invoke", Object.class);
+            this.invoke1 = Class.forName("clojure.lang.IFn", true, loader).getMethod("invoke", Object.class);
             this.eval = var.invoke(null, "clojure.core", "eval");
             this.readString = var.invoke(null, "clojure.core", "read-string");
+        }
+
+        @Override
+        public void close() throws IOException {
+            Thread.currentThread().setContextClassLoader(previousContextLoader);
+            loader.close();
         }
 
         /**
@@ -229,10 +294,11 @@ public final class Aot {
     }
 
     /** Flags, with {@code @file} expansion because a classpath's worth of them exceeds ARG_MAX. */
-    private static final class Args {
+    static final class Args {
         Path output;
         Path classesDir;
         boolean warmup;
+        final List<String> classpath = new ArrayList<>();
         final List<String> namespaces = new ArrayList<>();
         final Map<String, Path> resources = new LinkedHashMap<>();
 
@@ -249,6 +315,13 @@ public final class Aot {
                     case "output" -> args.output = Paths.get(value);
                     case "classes-dir" -> args.classesDir = Paths.get(value);
                     case "namespace" -> args.namespaces.add(value);
+                    case "classpath" -> {
+                        for (String entry : value.split(java.io.File.pathSeparator)) {
+                            if (!entry.isEmpty()) {
+                                args.classpath.add(entry);
+                            }
+                        }
+                    }
                     case "warmup" -> args.warmup = Boolean.parseBoolean(value);
                     case "resource" -> {
                         // entry-in-jar=path-on-disk; the path may itself contain '='.
@@ -260,6 +333,9 @@ public final class Aot {
                     }
                     default -> throw new IllegalArgumentException("unrecognised flag: --" + flag);
                 }
+            }
+            if (args.classpath.isEmpty()) {
+                throw new IllegalArgumentException("--classpath is required");
             }
             if (args.warmup) {
                 return args;

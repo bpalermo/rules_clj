@@ -2,9 +2,9 @@
 
 Bazel rules for Clojure.
 
-> **Status: phase 2 — compiling.** `clj_library` compiles ahead of time by default, one namespace
-> per target, with a conformance suite covering protocols, `deftype`, macros, `data_readers` and
-> mixed compiled/interpreted code. Nothing is published to the Bazel Central Registry, and the
+> **Status: phase 2 complete, plus the worker.** `clj_library` compiles ahead of time by default,
+> one namespace per target, through a persistent worker, with a conformance suite covering
+> protocols, `deftype`, macros, `data_readers` and mixed compiled/interpreted code. Nothing is published to the Bazel Central Registry, and the
 > version is deliberately `0.0.0` so that nothing can depend on it by accident.
 
 ## Why another one
@@ -23,7 +23,7 @@ of code rather than adding one:
 |---|---|
 | The compiler is a **Java shim** with no third-party dependencies | It shares a classpath with your code, so it must bring nothing to conflict with. Also means the ruleset never has to compile itself to build itself. |
 | Analysis runs in **its own process** | Which is why nothing needs vendoring: tools.namespace and tools.deps are ordinary dependencies over there. |
-| **No persistent worker** | A compile action costs ~0.34s and Bazel parallelises them. The class data sharing archive that was meant to shave that turned out to cost more than it saved — [`docs/design.md`](docs/design.md) has the numbers and why. |
+| **A worker that shares a JVM but not a Clojure runtime** | 0.398s per compile becomes 0.265s. Each request still loads its own Clojure in its own classloader — sharing that is where order-dependent compilation bugs come from. The class data sharing archive tried first is off by default: being uncacheable, it costs every action its place in the action cache. |
 | `deps.edn` resolved into a **checked-in lockfile** | Builds are hermetic and work offline; no Clojure CLI download, no `~/.m2`. |
 
 The reasoning behind each is in [`docs/design.md`](docs/design.md) — including the one that was
@@ -82,6 +82,11 @@ bazel run //bazel/dev:format       # rewrite Starlark in place
 ```
 
 Requires JDK 21; the build selects a hermetic `remotejdk_21` for both target and tool JVMs.
+
+```sh
+tools/benchmark/benchmark.sh 40          # what a compile costs, and what the worker saves
+bazel build //... --@rules_clj//clojure:worker=false   # a JVM per action, for debugging
+```
 
 ## Licence
 

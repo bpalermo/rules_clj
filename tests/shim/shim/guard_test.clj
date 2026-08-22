@@ -20,12 +20,20 @@
   (str (Files/createTempDirectory prefix (make-array FileAttribute 0))))
 
 (defn- run-shim
+  "Runs the shim as a subprocess.
+
+  The classpath appears twice on purpose, and they are different things: -cp is what
+  lets the JVM find the shim itself, while --classpath is part of the request and is
+  what the shim loads the code under compilation from. Keeping them separate is what
+  lets one worker process serve targets whose classpaths differ."
   [{:keys [classpath-prefix args]}]
   (let [java (str (System/getProperty "java.home") File/separator "bin" File/separator "java")
-        classpath (str/join File/pathSeparator
-                            (concat classpath-prefix [(System/getProperty "java.class.path")]))
+        own (System/getProperty "java.class.path")
+        request-classpath (str/join File/pathSeparator (concat classpath-prefix [own]))
         builder (doto (ProcessBuilder. ^java.util.List
-                                       (into [java "-cp" classpath "dev.palermo.rulesclj.Aot"] args))
+                                       (into [java "-cp" own "dev.palermo.rulesclj.Aot"
+                                              (str "--classpath=" request-classpath)]
+                                             args))
                   (.redirectErrorStream true))
         process (.start builder)
         output (slurp (.getInputStream process))]

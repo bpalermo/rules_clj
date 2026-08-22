@@ -47,9 +47,16 @@ def _clj_cds_archive_impl(ctx):
     # Exactly the prefix, and nothing more: an archive is only used when the runtime
     # classpath BEGINS with the dump-time classpath, so an extra entry here would
     # invalidate every lookup later — silently, since -Xshare:auto just carries on.
+    #
+    # The prefix appears twice because it is two different things. -cp is what the
+    # dumping JVM records and what later runs are checked against; --classpath is the
+    # request, telling the shim where to load Clojure from. They agree here by
+    # construction, which is the point of cds_prefix.
+    prefix = cds_prefix(runtime, shim)
     args.add("-cp")
-    args.add(":".join(cds_prefix(runtime, shim)))
+    args.add(":".join(prefix))
     args.add("dev.palermo.rulesclj.Aot")
+    args.add("--classpath=" + ":".join(prefix))
     args.add("--warmup=true")
 
     ctx.actions.run(

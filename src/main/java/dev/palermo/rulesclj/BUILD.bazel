@@ -16,11 +16,22 @@ java_library(
     srcs = [
         "Aot.java",
         "Jars.java",
+        "Json.java",
+        "Worker.java",
     ],
 )
 
 java_binary(
     name = "aot",
+    main_class = "dev.palermo.rulesclj.Aot",
+    runtime_deps = [":aot_lib"],
+)
+
+# The same code as :aot, started in worker mode by Bazel. A separate target because a
+# worker's executable is the thing Bazel launches once and then feeds requests to.
+java_binary(
+    name = "worker",
+    args = ["--persistent_worker"],
     main_class = "dev.palermo.rulesclj.Aot",
     runtime_deps = [":aot_lib"],
 )

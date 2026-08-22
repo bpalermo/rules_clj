@@ -24,96 +24,86 @@ echo "repo:  $repo"
 echo
 
 # ---------------------------------------------------------------------------------
-# A synthetic project. Each namespace requires the one before it, so the graph has real
-# depth rather than being N independent compiles: dependency loading is part of what is
-# being measured.
+# Two synthetic projects of different sizes, and the cost of a compile taken as the
+# SLOPE between them.
+#
+# Whole-build wall clock was tried first and does not answer the question: a clean build
+# also rebuilds the shim, the worker launcher and the JDK's own bits, and at these sizes
+# those fixed costs are most of the number — one configuration came out at 4s for 40
+# fresh JVMs, which is impossible. Differencing two sizes cancels everything that does
+# not scale with the number of namespaces.
+#
+# --jobs=1 so the figure is the cost of an action rather than of this machine's core
+# count, and the caches are off so the builds actually happen.
 # ---------------------------------------------------------------------------------
-mkdir -p "$work/src/bench"
-cat >"$work/MODULE.bazel" <<EOF
+small=$((count / 4))
+[ "$small" -lt 5 ] && small=5
+
+generate() {
+    local dir="$1" n="$2" i prev deps
+    mkdir -p "$dir/src/bench"
+    cat >"$dir/MODULE.bazel" <<EOF
 module(name = "rules_clj_benchmark", version = "0.0.0")
 bazel_dep(name = "rules_clj", version = "0.0.0")
 local_path_override(module_name = "rules_clj", path = "$repo")
 EOF
-cat >"$work/.bazelrc" <<'EOF'
+    cat >"$dir/.bazelrc" <<'EOF'
 build --java_language_version=21
 build --java_runtime_version=remotejdk_21
 build --tool_java_language_version=21
 build --tool_java_runtime_version=remotejdk_21
 EOF
-
-{
-    echo 'load("@rules_clj//clojure:defs.bzl", "clj_library")'
-    echo ''
-} >"$work/src/bench/BUILD.bazel"
-
-for i in $(seq 1 "$count"); do
-    if [ "$i" -eq 1 ]; then
-        cat >"$work/src/bench/ns$i.clj" <<EOF
-(ns bench.ns$i)
-(defn value [] $i)
+    echo 'load("@rules_clj//clojure:defs.bzl", "clj_library")' >"$dir/src/bench/BUILD.bazel"
+    for i in $(seq 1 "$n"); do
+        if [ "$i" -eq 1 ]; then
+            printf '(ns bench.ns%s)\n(defn value [] %s)\n' "$i" "$i" >"$dir/src/bench/ns$i.clj"
+            deps=""
+        else
+            prev=$((i - 1))
+            printf '(ns bench.ns%s (:require [bench.ns%s :as prev]))\n(defn value [] (+ %s (prev/value)))\n' \
+                "$i" "$prev" "$i" >"$dir/src/bench/ns$i.clj"
+            deps="\":ns$prev\""
+        fi
+        cat >>"$dir/src/bench/BUILD.bazel" <<EOF
+clj_library(name = "ns$i", srcs = ["ns$i.clj"], namespaces = ["bench.ns$i"], strip_prefix = "src", deps = [$deps])
 EOF
-        deps=""
-    else
-        prev=$((i - 1))
-        cat >"$work/src/bench/ns$i.clj" <<EOF
-(ns bench.ns$i (:require [bench.ns$prev :as prev]))
-(defn value [] (+ $i (prev/value)))
-EOF
-        deps="\":ns$prev\""
-    fi
-    cat >>"$work/src/bench/BUILD.bazel" <<EOF
-clj_library(
-    name = "ns$i",
-    srcs = ["ns$i.clj"],
-    namespaces = ["bench.ns$i"],
-    strip_prefix = "src",
-    deps = [$deps],
-)
-EOF
-done
+    done
+}
 
-# ---------------------------------------------------------------------------------
-# The CDS claim, measured where it actually applies.
-#
-# An earlier version of this timed the JVM directly, outside Bazel. That cannot work: an
-# archive records the classpath it was dumped with, and inside a sandbox those paths are
-# relative, so an outside invocation with absolute paths never matches it — the probe
-# measured "no archive" twice and reported the difference as a result. Toggling the
-# ruleset's own flag keeps everything else identical.
-# ---------------------------------------------------------------------------------
-cd "$work"
+generate "$work/small" "$small"
+generate "$work/large" "$count"
 
-# Each configuration is built twice and the second is reported. The first build of a
-# session warms the page cache for the JDK and the jars, which is worth several seconds
-# — enough that whichever configuration ran first looked dramatically worse.
+# Disabling the caches matters more than it looks: without it a second build after
+# `bazel clean` is served from the user's disk cache, every configuration finishes in
+# about two seconds, and nothing has compiled.
+NO_CACHE=(--disk_cache= --noremote_accept_cached --noremote_upload_local_results --jobs=1)
+
 time_build() {
-    local flag="$1" start end
-    bazel clean >/dev/null 2>&1
-    bazel build //... "$flag" >/dev/null 2>&1
-    bazel clean >/dev/null 2>&1
+    local dir="$1"
+    shift
+    local start end
+    (cd "$dir" && bazel clean >/dev/null 2>&1 && bazel build //... "${NO_CACHE[@]}" "$@" >/dev/null 2>&1)
+    (cd "$dir" && bazel clean >/dev/null 2>&1)
     start=$(date +%s.%N)
-    bazel build //... "$flag" >/dev/null 2>&1
+    (cd "$dir" && bazel build //... "${NO_CACHE[@]}" "$@" >/dev/null 2>&1) || { echo "build failed in $dir" >&2; exit 1; }
     end=$(date +%s.%N)
     echo "$end - $start" | bc
 }
 
-off="$(time_build --@rules_clj//clojure:cds=off)"
-on="$(time_build --@rules_clj//clojure:cds=auto)"
-saved=$(echo "scale=1; 100 * ($off - $on) / $off" | bc)
+per_action() {
+    local label="$1"
+    shift
+    local t_small t_large
+    t_small="$(time_build "$work/small" "$@")"
+    t_large="$(time_build "$work/large" "$@")"
+    printf '  %-34s %ss per compile\n' "$label" \
+        "$(echo "scale=3; ($t_large - $t_small) / ($count - $small)" | bc)"
+}
 
-echo "cold build of ${count} targets:"
-echo "  --@rules_clj//clojure:cds=off   ${off}s"
-echo "  --@rules_clj//clojure:cds=auto  ${on}s   (${saved}% faster)"
+echo "cost of one compile action, as the slope between ${small} and ${count} namespaces:"
+per_action "a JVM per action" --@rules_clj//clojure:worker=false
+per_action "persistent worker (the default)" --@rules_clj//clojure:worker=true
 echo
-
-# An archive that is silently ignored looks exactly like one that works, so require it.
-if bazel build //... --@rules_clj//clojure:cds=on >/dev/null 2>&1; then
-    echo "the archive is genuinely mapped (-Xshare:on succeeds in every compile action)"
-else
-    echo "WARNING: builds fail under cds=on, so the archive is NOT being mapped." >&2
-    echo "  Builds still succeed by default — cds=auto degrades quietly — but the saving" >&2
-    echo "  above is not being had. The usual cause is the compile classpath no longer" >&2
-    echo "  starting with exactly the prefix the archive was dumped with; see" >&2
-    echo "  clojure/private/cds.bzl." >&2
-    exit 1
-fi
+echo "The CDS archive is not measured here. It is off by default for a structural reason"
+echo "rather than a timing one — being uncacheable, it changes every compile action's key"
+echo "on every clean build — so a number would not change the decision. docs/design.md."

@@ -1,1 +1,9 @@
 examples
+
+# Bazel's convenience symlinks. They point into one version's output base, and switching
+# Bazel versions in the same checkout leaves the new version walking the old tree, where
+# it dies on whatever external repo it finds first.
+bazel-bin
+bazel-out
+bazel-rules_clj
+bazel-testlogs

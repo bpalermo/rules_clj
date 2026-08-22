@@ -5,7 +5,7 @@ other package in this repository is an implementation detail and may change
 without notice.
 """
 
-load("@bazel_skylib//rules:common_settings.bzl", "string_flag")
+load("@bazel_skylib//rules:common_settings.bzl", "bool_flag", "string_flag")
 
 package(default_visibility = ["//visibility:public"])
 
@@ -47,4 +47,19 @@ string_flag(
         "off",
         "on",
     ],
+)
+
+# Whether compile actions go through a Bazel persistent worker.
+#
+# On by default: a worker keeps one JVM alive across targets, which removes JVM startup
+# and gives the JIT a chance to warm up. It does NOT share a Clojure runtime between
+# targets — each request loads its own in its own classloader, because a shared runtime
+# carries one target's namespaces into the next and makes compilation order-dependent.
+#
+# Turn it off to compare, or when debugging a compile that misbehaves: without the
+# worker each action is an ordinary short-lived JVM, which is easier to reason about and
+# to run by hand.
+bool_flag(
+    name = "worker",
+    build_setting_default = True,
 )
