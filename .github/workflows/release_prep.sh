@@ -14,10 +14,23 @@ ARCHIVE="rules_clj-${TAG}.tar.gz"
 
 git archive --format=tar --prefix="${PREFIX}/" "${TAG}" | gzip > "${ARCHIVE}"
 
-# Checked rather than trusted: a mismatch here is caught now, not by BCR much later with a
-# far less obvious message.
-declared=$(tar -xzOf "${ARCHIVE}" "${PREFIX}/MODULE.bazel" \
-  | grep -oE 'version = "[^"]+"' | head -1 | cut -d'"' -f2)
+# Checked against the ARCHIVE rather than the working tree, deliberately: this is the
+# file BCR will read, and a mismatch caught here is far cheaper than the same mismatch
+# reported by the registry after a tag exists.
+#
+# The parser comes out of the archive too, not from the checkout. It is the same script
+# either way when the tag matches the working tree, and when it does not — a re-run
+# against an older tag, a dispatch from a different ref — the archived tree is what is
+# being shipped, so the archived tree is what should be judging itself. That also removes
+# the dependence on $PWD: everything runs from inside the unpacked prefix.
+unpacked="$(mktemp -d)"
+trap 'rm -rf "${unpacked}"' EXIT
+tar -xzf "${ARCHIVE}" -C "${unpacked}" \
+    "${PREFIX}/MODULE.bazel" \
+    "${PREFIX}/bazel/tools/workspace_status.sh"
+declared=$(cd "${unpacked}/${PREFIX}" && ./bazel/tools/workspace_status.sh |
+    awk '$1 == "STABLE_VERSION" { print $2 }')
+
 if [ "${declared}" != "${TAG#v}" ]; then
   echo "archived MODULE.bazel declares '${declared}', tag is '${TAG#v}'" >&2
   exit 1

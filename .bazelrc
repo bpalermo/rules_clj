@@ -8,3 +8,8 @@ build --tool_java_runtime_version=remotejdk_21
 
 test --test_output=errors
 test --verbose_failures
+
+# One parser for the version; see bazel/tools/workspace_status.sh. Nothing is stamped
+# into an artifact today — this exists so the release workflow reads the version from
+# the same place a stamped artifact would, instead of carrying its own regex.
+build --workspace_status_command=bazel/tools/workspace_status.sh

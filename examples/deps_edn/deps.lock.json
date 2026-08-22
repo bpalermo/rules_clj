@@ -23,10 +23,10 @@
       "deps": []
     },
     {
-      "coordinates": "org.clojure/data.json:2.5.1",
+      "coordinates": "org.clojure/data.json:2.5.2",
       "target": "org_clojure_data_json",
-      "path": "org/clojure/data.json/2.5.1/data.json-2.5.1.jar",
-      "sha256": "6da57351e334173c85dea1696c7d4847a4f3e11dbaeb397da65e7a26849e94b3",
+      "path": "org/clojure/data.json/2.5.2/data.json-2.5.2.jar",
+      "sha256": "0938c730961d32b331ea7e5cd7c6a822c0a889def79d1c3f2af4dd201fdddeb3",
       "deps": []
     },
     {

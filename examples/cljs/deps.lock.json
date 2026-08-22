@@ -24,10 +24,10 @@
       "deps": []
     },
     {
-      "coordinates": "com.google.javascript/closure-compiler-unshaded:v20220502",
-      "target": "com_google_javascript_closure_compiler_unshaded",
-      "path": "com/google/javascript/closure-compiler-unshaded/v20220502/closure-compiler-unshaded-v20220502.jar",
-      "sha256": "590c794057a9ffb4818a4aa0d140f91bc1aa0afe7b421b628c957ec1732d9a4d",
+      "coordinates": "com.google.javascript/closure-compiler:v20250820",
+      "target": "com_google_javascript_closure_compiler",
+      "path": "com/google/javascript/closure-compiler/v20250820/closure-compiler-v20250820.jar",
+      "sha256": "171d24354ffe7dcd378fe4dfb30e4673859391f4da11a70ba04fdac0dd4d82d2",
       "deps": []
     },
     {
@@ -55,13 +55,13 @@
       ]
     },
     {
-      "coordinates": "org.clojure/clojurescript:1.11.132",
+      "coordinates": "org.clojure/clojurescript:1.12.145",
       "target": "org_clojure_clojurescript",
-      "path": "org/clojure/clojurescript/1.11.132/clojurescript-1.11.132.jar",
-      "sha256": "3657c2d5db7ea8ea46cee01eff0343771501a9d4882c60622535f46635290151",
+      "path": "org/clojure/clojurescript/1.12.145/clojurescript-1.12.145.jar",
+      "sha256": "cc8795a3f7a0238d4a7b69413b969cb12ed8ccb7a9991e9e06d107743f8d55e7",
       "deps": [
         "com_cognitect_transit_java",
-        "com_google_javascript_closure_compiler_unshaded",
+        "com_google_javascript_closure_compiler",
         "org_clojure_google_closure_library",
         "org_clojure_tools_reader"
       ]
@@ -74,19 +74,19 @@
       "deps": []
     },
     {
-      "coordinates": "org.clojure/google-closure-library:0.0-20230227-c7c0a541",
+      "coordinates": "org.clojure/google-closure-library:0.0-20250515-f04e4c0e",
       "target": "org_clojure_google_closure_library",
-      "path": "org/clojure/google-closure-library/0.0-20230227-c7c0a541/google-closure-library-0.0-20230227-c7c0a541.jar",
-      "sha256": "1485aa95e7730f84acbba11b865190c538b88f41f0107b47f52fdd85384d414b",
+      "path": "org/clojure/google-closure-library/0.0-20250515-f04e4c0e/google-closure-library-0.0-20250515-f04e4c0e.jar",
+      "sha256": "451cc32a6897448c925a9c72338a7a573a874bd3da0b385eda87e81c060d7e1a",
       "deps": [
         "org_clojure_google_closure_library_third_party"
       ]
     },
     {
-      "coordinates": "org.clojure/google-closure-library-third-party:0.0-20230227-c7c0a541",
+      "coordinates": "org.clojure/google-closure-library-third-party:0.0-20250515-f04e4c0e",
       "target": "org_clojure_google_closure_library_third_party",
-      "path": "org/clojure/google-closure-library-third-party/0.0-20230227-c7c0a541/google-closure-library-third-party-0.0-20230227-c7c0a541.jar",
-      "sha256": "6a43811e210c2fe503b1965e2719b787b82a7cd6d5201d30377ff7ec16d9694a",
+      "path": "org/clojure/google-closure-library-third-party/0.0-20250515-f04e4c0e/google-closure-library-third-party-0.0-20250515-f04e4c0e.jar",
+      "sha256": "499a8b5ee6ffc63632bde745a98023967a7a66ccb6ad76411121fb2745d8d3a3",
       "deps": []
     },
     {

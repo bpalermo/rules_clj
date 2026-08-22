@@ -53,14 +53,23 @@ jobs:
               ;;
           esac
 
+      # Read from the workspace-status script rather than re-parsing MODULE.bazel here.
+      # Two copies of a version parser drift, and the symptom only shows up when cutting
+      # a release — which is this job's whole job.
+      #
+      # The comparison is exact, including any prerelease suffix, because publish-to-bcr
+      # derives the entry version from the TAG (VERSION=${TAG#$PREFIX} in its workflow)
+      # while the registry validates that against the MODULE.bazel inside the archive. A
+      # tag of v0.1.0-rc1 therefore needs MODULE.bazel to say 0.1.0-rc1, or the entry it
+      # produces could never be valid.
       - name: MODULE.bazel must agree with the tag
         env:
           TAG: ${{ inputs.tag_name || github.ref_name }}
         run: |
           version="${TAG#v}"
-          modver=$(grep -oE 'version = "[^"]+"' MODULE.bazel | head -1 | cut -d'"' -f2)
-          if [ "$modver" != "$version" ]; then
-            echo "::error::MODULE.bazel declares '$modver' but the tag is '$version'" >&2
+          declared=$(bazel/tools/workspace_status.sh | awk '$1 == "STABLE_VERSION" { print $2 }')
+          if [ "$declared" != "$version" ]; then
+            echo "::error::MODULE.bazel declares '$declared' but the tag is '$version'" >&2
             exit 1
           fi
           echo "releasing $version"
