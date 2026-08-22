@@ -1,0 +1,22 @@
+# A native binary: Clojure that starts instantly, for a CLI or a protoc plugin.
+#
+# The GraalVM comes from rules_clj's own extension, pinned by digest. It is a large
+# download, which is why the toolchain is separate from the Clojure one and why this
+# example is tagged manual — CI should not fetch a JDK-sized archive to prove a rule
+# compiles.
+module(
+    name = "rules_clj_example_native",
+    version = "0.0.0",
+)
+
+bazel_dep(name = "rules_clj", version = "0.0.0")
+local_path_override(
+    module_name = "rules_clj",
+    path = "../..",
+)
+
+native_toolchains = use_extension("@rules_clj//clojure:extensions.bzl", "native_toolchains")
+native_toolchains.graalvm(version = "21.0.2")
+use_repo(native_toolchains, "graalvm")
+
+register_toolchains("@graalvm//:toolchain")

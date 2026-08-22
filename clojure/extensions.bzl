@@ -7,6 +7,8 @@ it. Project dependencies are a different problem with a different answer — see
 docs/design.md on the deps.edn lockfile.
 """
 
+load("//clojure/private:deps_repo.bzl", "clj_deps_repo")
+load("//clojure/private:graalvm_repo.bzl", "graalvm_repo")
 load("//clojure/private:runtime_repo.bzl", "clojure_runtime_repo")
 
 # Known Clojure runtimes, pinned by digest. Adding a version means adding its three
@@ -80,4 +82,67 @@ def _clojure_impl(module_ctx):
 clojure = module_extension(
     implementation = _clojure_impl,
     tag_classes = {"toolchain": _toolchain},
+)
+
+_install = tag_class(
+    doc = "Fetch the dependencies a lockfile names.",
+    attrs = {
+        "name": attr.string(
+            doc = "Repository name; targets are then @<name>//:group_artifact.",
+            default = "deps",
+        ),
+        "lock": attr.label(
+            doc = "A lockfile written by //tools/lock from your deps.edn.",
+            mandatory = True,
+        ),
+    },
+)
+
+def _deps_impl(module_ctx):
+    direct = []
+    direct_dev = []
+    for mod in module_ctx.modules:
+        for tag in mod.tags.install:
+            clj_deps_repo(name = tag.name, lock = tag.lock)
+            if mod.is_root:
+                # Which list a repo belongs in depends on how the root module asked for
+                # it. Reporting "all" unconditionally is an error when the only usages
+                # are dev ones, which is exactly how this ruleset uses its own extension.
+                if module_ctx.is_dev_dependency(tag):
+                    direct_dev.append(tag.name)
+                else:
+                    direct.append(tag.name)
+
+    return module_ctx.extension_metadata(
+        root_module_direct_deps = direct,
+        root_module_direct_dev_deps = direct_dev,
+
+        # Reproducible: the lock pins every artifact by digest, so this extension has no
+        # decisions left to make and Bazel need not re-run it to find out.
+        reproducible = True,
+    )
+
+deps = module_extension(
+    implementation = _deps_impl,
+    tag_classes = {"install": _install},
+)
+
+_graalvm = tag_class(
+    doc = "Fetch a GraalVM for building native images.",
+    attrs = {
+        "name": attr.string(default = "graalvm"),
+        "version": attr.string(default = "21.0.2"),
+    },
+)
+
+def _native_impl(module_ctx):
+    for mod in module_ctx.modules:
+        for tag in mod.tags.graalvm:
+            graalvm_repo(name = tag.name, version = tag.version)
+
+    return module_ctx.extension_metadata(reproducible = True)
+
+native_toolchains = module_extension(
+    implementation = _native_impl,
+    tag_classes = {"graalvm": _graalvm},
 )

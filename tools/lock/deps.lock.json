@@ -1,0 +1,521 @@
+{
+  "version": 1,
+  "repositories": [
+    "https://repo1.maven.org/maven2/",
+    "https://repo.clojars.org/"
+  ],
+  "artifacts": [
+    {
+      "coordinates": "com.cognitect.aws/api:0.8.838",
+      "target": "com_cognitect_aws_api",
+      "path": "com/cognitect/aws/api/0.8.838/api-0.8.838.jar",
+      "sha256": "4c139b48345ec6258eab9d8a4ca0c62a1060e9b8e7c91eaa65f20c593c087ff5",
+      "deps": [
+        "org_clojure_core_async",
+        "org_clojure_data_json",
+        "org_clojure_tools_logging"
+      ]
+    },
+    {
+      "coordinates": "com.cognitect.aws/endpoints:871.2.47.0",
+      "target": "com_cognitect_aws_endpoints",
+      "path": "com/cognitect/aws/endpoints/871.2.47.0/endpoints-871.2.47.0.jar",
+      "sha256": "a2177aeb4152190d44753a2c38c5a0693b48a9eb782ec0ea60443553f8f3af8f",
+      "deps": []
+    },
+    {
+      "coordinates": "com.cognitect.aws/s3:871.2.46.17",
+      "target": "com_cognitect_aws_s3",
+      "path": "com/cognitect/aws/s3/871.2.46.17/s3-871.2.46.17.jar",
+      "sha256": "cbcb19dcab49bd51dc1569c50f9e1faa600ca648074a4e32203db7b0f97ce31e",
+      "deps": []
+    },
+    {
+      "coordinates": "com.google.code.gson/gson:2.13.2",
+      "target": "com_google_code_gson_gson",
+      "path": "com/google/code/gson/gson/2.13.2/gson-2.13.2.jar",
+      "sha256": "dd0ce1b55a3ed2080cb70f9c655850cda86c206862310009dcb5e5c95265a5e0",
+      "deps": [
+        "com_google_errorprone_error_prone_annotations"
+      ]
+    },
+    {
+      "coordinates": "com.google.errorprone/error_prone_annotations:2.41.0",
+      "target": "com_google_errorprone_error_prone_annotations",
+      "path": "com/google/errorprone/error_prone_annotations/2.41.0/error_prone_annotations-2.41.0.jar",
+      "sha256": "a56e782b5b50811ac204073a355a21d915a2107fce13ec711331ad036f660fcc",
+      "deps": []
+    },
+    {
+      "coordinates": "commons-codec/commons-codec:1.21.0",
+      "target": "commons_codec_commons_codec",
+      "path": "commons-codec/commons-codec/1.21.0/commons-codec-1.21.0.jar",
+      "sha256": "4da851cb6abfb98bfe9eb77c5e5fc47f5414fa28b94e21b7fd9a646705dc167f",
+      "deps": []
+    },
+    {
+      "coordinates": "eu.maveniverse.maven.mima/context:2.4.45",
+      "target": "eu_maveniverse_maven_mima_context",
+      "path": "eu/maveniverse/maven/mima/context/2.4.45/context-2.4.45.jar",
+      "sha256": "b81423b8127bf536aec6ff83b4c4cef0746d90a6327e0e39d5aabea26cc7d153",
+      "deps": [
+        "org_apache_maven_resolver_maven_resolver_api",
+        "org_apache_maven_resolver_maven_resolver_util"
+      ]
+    },
+    {
+      "coordinates": "eu.maveniverse.maven.mima.extensions/mhc4:2.4.45",
+      "target": "eu_maveniverse_maven_mima_extensions_mhc4",
+      "path": "eu/maveniverse/maven/mima/extensions/mhc4/2.4.45/mhc4-2.4.45.jar",
+      "sha256": "67c430797e26a45c80b4b8ec317107a89b483ac68425069c1d4d1af28788bfd9",
+      "deps": []
+    },
+    {
+      "coordinates": "eu.maveniverse.maven.mima.extensions/mmr:2.4.45",
+      "target": "eu_maveniverse_maven_mima_extensions_mmr",
+      "path": "eu/maveniverse/maven/mima/extensions/mmr/2.4.45/mmr-2.4.45.jar",
+      "sha256": "3237e2125ec3229638c19ffde718343b6cb498fc7e9812b62e69161a28796b18",
+      "deps": []
+    },
+    {
+      "coordinates": "eu.maveniverse.maven.mima.runtime/standalone-shared:2.4.45",
+      "target": "eu_maveniverse_maven_mima_runtime_standalone_shared",
+      "path": "eu/maveniverse/maven/mima/runtime/standalone-shared/2.4.45/standalone-shared-2.4.45.jar",
+      "sha256": "0a62847446f64ec4f90bcde0b22e8b351ef28b0384921c9d8fde3eab36595902",
+      "deps": []
+    },
+    {
+      "coordinates": "eu.maveniverse.maven.mima.runtime/standalone-static:2.4.45",
+      "target": "eu_maveniverse_maven_mima_runtime_standalone_static",
+      "path": "eu/maveniverse/maven/mima/runtime/standalone-static/2.4.45/standalone-static-2.4.45.jar",
+      "sha256": "c1fe8adc253d117b317d7e4ca8fed5c38a234038dfba2b46b2595d0104e724d7",
+      "deps": [
+        "eu_maveniverse_maven_mima_runtime_standalone_shared",
+        "org_apache_maven_maven_model_builder",
+        "org_apache_maven_maven_resolver_provider",
+        "org_apache_maven_maven_settings_builder",
+        "org_apache_maven_resolver_maven_resolver_api",
+        "org_apache_maven_resolver_maven_resolver_connector_basic",
+        "org_apache_maven_resolver_maven_resolver_impl",
+        "org_apache_maven_resolver_maven_resolver_named_locks",
+        "org_apache_maven_resolver_maven_resolver_spi",
+        "org_apache_maven_resolver_maven_resolver_supplier",
+        "org_apache_maven_resolver_maven_resolver_transport_file",
+        "org_apache_maven_resolver_maven_resolver_transport_http",
+        "org_apache_maven_resolver_maven_resolver_util"
+      ]
+    },
+    {
+      "coordinates": "org.apache.httpcomponents/httpclient:4.5.14",
+      "target": "org_apache_httpcomponents_httpclient",
+      "path": "org/apache/httpcomponents/httpclient/4.5.14/httpclient-4.5.14.jar",
+      "sha256": "c8bc7e1c51a6d4ce72f40d2ebbabf1c4b68bfe76e732104b04381b493478e9d6",
+      "deps": [
+        "org_apache_httpcomponents_httpcore"
+      ]
+    },
+    {
+      "coordinates": "org.apache.httpcomponents/httpcore:4.4.16",
+      "target": "org_apache_httpcomponents_httpcore",
+      "path": "org/apache/httpcomponents/httpcore/4.4.16/httpcore-4.4.16.jar",
+      "sha256": "6c9b3dd142a09dc468e23ad39aad6f75a0f2b85125104469f026e52a474e464f",
+      "deps": []
+    },
+    {
+      "coordinates": "org.apache.maven/maven-artifact:3.9.16",
+      "target": "org_apache_maven_maven_artifact",
+      "path": "org/apache/maven/maven-artifact/3.9.16/maven-artifact-3.9.16.jar",
+      "sha256": "54cc1c1ef932e3d4a903352111b42b4d3c3ed8e7a1d0de73b625309d9c3ad3e8",
+      "deps": [
+        "org_codehaus_plexus_plexus_utils"
+      ]
+    },
+    {
+      "coordinates": "org.apache.maven/maven-builder-support:3.9.16",
+      "target": "org_apache_maven_maven_builder_support",
+      "path": "org/apache/maven/maven-builder-support/3.9.16/maven-builder-support-3.9.16.jar",
+      "sha256": "02972384eae3495801565fd27abb84cfd75a8e6d2cbb1ae0c556752ebc2b1cde",
+      "deps": []
+    },
+    {
+      "coordinates": "org.apache.maven/maven-model:3.9.16",
+      "target": "org_apache_maven_maven_model",
+      "path": "org/apache/maven/maven-model/3.9.16/maven-model-3.9.16.jar",
+      "sha256": "f59d86a507c241bf17bbf050050d1b8b9c0d34d5010a7e2386c3cab7c83b93de",
+      "deps": [
+        "org_codehaus_plexus_plexus_utils"
+      ]
+    },
+    {
+      "coordinates": "org.apache.maven/maven-model-builder:3.9.16",
+      "target": "org_apache_maven_maven_model_builder",
+      "path": "org/apache/maven/maven-model-builder/3.9.16/maven-model-builder-3.9.16.jar",
+      "sha256": "002be86d1f53b36f559a0786034a17598d71087f1935f205a1f9e51d4dd124b3",
+      "deps": [
+        "org_apache_maven_maven_artifact",
+        "org_apache_maven_maven_builder_support",
+        "org_apache_maven_maven_model",
+        "org_codehaus_plexus_plexus_interpolation",
+        "org_ow2_asm_asm"
+      ]
+    },
+    {
+      "coordinates": "org.apache.maven/maven-repository-metadata:3.9.16",
+      "target": "org_apache_maven_maven_repository_metadata",
+      "path": "org/apache/maven/maven-repository-metadata/3.9.16/maven-repository-metadata-3.9.16.jar",
+      "sha256": "bc3dd413b89a16b695f35a5d0496b58ea2787c30b7b6062c130d24d6d764720f",
+      "deps": [
+        "org_codehaus_plexus_plexus_utils"
+      ]
+    },
+    {
+      "coordinates": "org.apache.maven/maven-resolver-provider:3.9.16",
+      "target": "org_apache_maven_maven_resolver_provider",
+      "path": "org/apache/maven/maven-resolver-provider/3.9.16/maven-resolver-provider-3.9.16.jar",
+      "sha256": "72a2d6aad3708e2c708b659b292ae9587a4d170ec88f48466290318730221118",
+      "deps": [
+        "org_apache_maven_maven_model",
+        "org_apache_maven_maven_model_builder",
+        "org_apache_maven_maven_repository_metadata",
+        "org_apache_maven_resolver_maven_resolver_api",
+        "org_apache_maven_resolver_maven_resolver_impl",
+        "org_apache_maven_resolver_maven_resolver_spi",
+        "org_apache_maven_resolver_maven_resolver_util",
+        "org_codehaus_plexus_plexus_utils"
+      ]
+    },
+    {
+      "coordinates": "org.apache.maven/maven-settings:3.9.16",
+      "target": "org_apache_maven_maven_settings",
+      "path": "org/apache/maven/maven-settings/3.9.16/maven-settings-3.9.16.jar",
+      "sha256": "322ae5b23f4b7b6ce7896bd33a793143dbbbbcc16c4475e2d7eebbd8f755da92",
+      "deps": [
+        "org_codehaus_plexus_plexus_utils"
+      ]
+    },
+    {
+      "coordinates": "org.apache.maven/maven-settings-builder:3.9.16",
+      "target": "org_apache_maven_maven_settings_builder",
+      "path": "org/apache/maven/maven-settings-builder/3.9.16/maven-settings-builder-3.9.16.jar",
+      "sha256": "226f1cbb0b4d414eff773fb151a8977837c98073e14d5963794e6cf464e6adbb",
+      "deps": [
+        "org_apache_maven_maven_builder_support",
+        "org_apache_maven_maven_settings",
+        "org_codehaus_plexus_plexus_interpolation",
+        "org_codehaus_plexus_plexus_sec_dispatcher",
+        "org_codehaus_plexus_plexus_utils"
+      ]
+    },
+    {
+      "coordinates": "org.apache.maven.resolver/maven-resolver-api:1.9.27",
+      "target": "org_apache_maven_resolver_maven_resolver_api",
+      "path": "org/apache/maven/resolver/maven-resolver-api/1.9.27/maven-resolver-api-1.9.27.jar",
+      "sha256": "a895d222283666a7320ddc76615e2e93a41fabd93ce9a6bf9ddee39272bb87b4",
+      "deps": []
+    },
+    {
+      "coordinates": "org.apache.maven.resolver/maven-resolver-connector-basic:1.9.27",
+      "target": "org_apache_maven_resolver_maven_resolver_connector_basic",
+      "path": "org/apache/maven/resolver/maven-resolver-connector-basic/1.9.27/maven-resolver-connector-basic-1.9.27.jar",
+      "sha256": "3bd98e3a426f9adcae39e3786db229e2be77e08a743ecd9be15c5ed77be3a625",
+      "deps": [
+        "org_apache_maven_resolver_maven_resolver_api",
+        "org_apache_maven_resolver_maven_resolver_spi",
+        "org_apache_maven_resolver_maven_resolver_util",
+        "org_slf4j_slf4j_api"
+      ]
+    },
+    {
+      "coordinates": "org.apache.maven.resolver/maven-resolver-impl:1.9.27",
+      "target": "org_apache_maven_resolver_maven_resolver_impl",
+      "path": "org/apache/maven/resolver/maven-resolver-impl/1.9.27/maven-resolver-impl-1.9.27.jar",
+      "sha256": "295d48ea2a8bb3aef51888967f105fb6251997d111f13c32d28919fd9b1c951e",
+      "deps": [
+        "org_apache_maven_resolver_maven_resolver_api",
+        "org_apache_maven_resolver_maven_resolver_named_locks",
+        "org_apache_maven_resolver_maven_resolver_spi",
+        "org_apache_maven_resolver_maven_resolver_util",
+        "org_slf4j_slf4j_api"
+      ]
+    },
+    {
+      "coordinates": "org.apache.maven.resolver/maven-resolver-named-locks:1.9.27",
+      "target": "org_apache_maven_resolver_maven_resolver_named_locks",
+      "path": "org/apache/maven/resolver/maven-resolver-named-locks/1.9.27/maven-resolver-named-locks-1.9.27.jar",
+      "sha256": "b39ecd4da98fdac5068e6f5d16910a71f4e4d48e95e17d107f6603e18f2b3fdf",
+      "deps": [
+        "org_slf4j_slf4j_api"
+      ]
+    },
+    {
+      "coordinates": "org.apache.maven.resolver/maven-resolver-spi:1.9.27",
+      "target": "org_apache_maven_resolver_maven_resolver_spi",
+      "path": "org/apache/maven/resolver/maven-resolver-spi/1.9.27/maven-resolver-spi-1.9.27.jar",
+      "sha256": "1cab02f45bc58d5f4d8e084eaf032f13ea1a5fc9021d8bd74f8360ebb6593e5a",
+      "deps": [
+        "org_apache_maven_resolver_maven_resolver_api"
+      ]
+    },
+    {
+      "coordinates": "org.apache.maven.resolver/maven-resolver-supplier:1.9.27",
+      "target": "org_apache_maven_resolver_maven_resolver_supplier",
+      "path": "org/apache/maven/resolver/maven-resolver-supplier/1.9.27/maven-resolver-supplier-1.9.27.jar",
+      "sha256": "2da980ca88e8e15f2951a32a50768f0a5e202f075718f8ddbd558123e8594dcd",
+      "deps": [
+        "org_apache_maven_resolver_maven_resolver_api",
+        "org_apache_maven_resolver_maven_resolver_connector_basic",
+        "org_apache_maven_resolver_maven_resolver_impl",
+        "org_apache_maven_resolver_maven_resolver_named_locks",
+        "org_apache_maven_resolver_maven_resolver_spi",
+        "org_apache_maven_resolver_maven_resolver_transport_file",
+        "org_apache_maven_resolver_maven_resolver_transport_http",
+        "org_slf4j_slf4j_api"
+      ]
+    },
+    {
+      "coordinates": "org.apache.maven.resolver/maven-resolver-transport-file:1.9.27",
+      "target": "org_apache_maven_resolver_maven_resolver_transport_file",
+      "path": "org/apache/maven/resolver/maven-resolver-transport-file/1.9.27/maven-resolver-transport-file-1.9.27.jar",
+      "sha256": "3988261bd31e2e79eda802b3971992fce44756b0029557a05c7b871d3c3ddef7",
+      "deps": [
+        "org_apache_maven_resolver_maven_resolver_api",
+        "org_apache_maven_resolver_maven_resolver_spi",
+        "org_slf4j_slf4j_api"
+      ]
+    },
+    {
+      "coordinates": "org.apache.maven.resolver/maven-resolver-transport-http:1.9.27",
+      "target": "org_apache_maven_resolver_maven_resolver_transport_http",
+      "path": "org/apache/maven/resolver/maven-resolver-transport-http/1.9.27/maven-resolver-transport-http-1.9.27.jar",
+      "sha256": "723f3d9d717a693d0aac589e266b995f76e9c63edd48ecc8a0cf9e86a77e459c",
+      "deps": [
+        "com_google_code_gson_gson",
+        "commons_codec_commons_codec",
+        "org_apache_httpcomponents_httpclient",
+        "org_apache_httpcomponents_httpcore",
+        "org_apache_maven_resolver_maven_resolver_api",
+        "org_apache_maven_resolver_maven_resolver_spi",
+        "org_apache_maven_resolver_maven_resolver_util",
+        "org_slf4j_jcl_over_slf4j",
+        "org_slf4j_slf4j_api"
+      ]
+    },
+    {
+      "coordinates": "org.apache.maven.resolver/maven-resolver-util:1.9.27",
+      "target": "org_apache_maven_resolver_maven_resolver_util",
+      "path": "org/apache/maven/resolver/maven-resolver-util/1.9.27/maven-resolver-util-1.9.27.jar",
+      "sha256": "74a12548f0d6aad13c728666288c1e81201c24bd05bb4e4ec8c1558517b379a7",
+      "deps": [
+        "org_apache_maven_resolver_maven_resolver_api"
+      ]
+    },
+    {
+      "coordinates": "org.clojure/clojure:1.12.1",
+      "target": "org_clojure_clojure",
+      "path": "org/clojure/clojure/1.12.1/clojure-1.12.1.jar",
+      "sha256": "87eeea9e355d86c045738af494d683e09e914cb0467ae40d46a66b87a36c72d4",
+      "deps": [
+        "org_clojure_core_specs_alpha",
+        "org_clojure_spec_alpha"
+      ]
+    },
+    {
+      "coordinates": "org.clojure/core.async:1.8.741",
+      "target": "org_clojure_core_async",
+      "path": "org/clojure/core.async/1.8.741/core.async-1.8.741.jar",
+      "sha256": "288489a4f0e580f43e1913cba842b32959ef01e2d1bc3a01db2e97c79c9c655a",
+      "deps": [
+        "org_clojure_tools_analyzer_jvm"
+      ]
+    },
+    {
+      "coordinates": "org.clojure/core.cache:1.1.234",
+      "target": "org_clojure_core_cache",
+      "path": "org/clojure/core.cache/1.1.234/core.cache-1.1.234.jar",
+      "sha256": "ba9071044edb7b009288b2c5f800a7dcd918b0f1725c5ba800469238df972f63",
+      "deps": [
+        "org_clojure_data_priority_map"
+      ]
+    },
+    {
+      "coordinates": "org.clojure/core.memoize:1.1.266",
+      "target": "org_clojure_core_memoize",
+      "path": "org/clojure/core.memoize/1.1.266/core.memoize-1.1.266.jar",
+      "sha256": "5792a21d6d90a1f5e68d4a10f65607aa21f6c484eb9d1a421cefc1f8ac26f18e",
+      "deps": [
+        "org_clojure_core_cache"
+      ]
+    },
+    {
+      "coordinates": "org.clojure/core.specs.alpha:0.4.74",
+      "target": "org_clojure_core_specs_alpha",
+      "path": "org/clojure/core.specs.alpha/0.4.74/core.specs.alpha-0.4.74.jar",
+      "sha256": "eb73ac08cf49ba840c88ba67beef11336ca554333d9408808d78946e0feb9ddb",
+      "deps": []
+    },
+    {
+      "coordinates": "org.clojure/data.json:2.5.2",
+      "target": "org_clojure_data_json",
+      "path": "org/clojure/data.json/2.5.2/data.json-2.5.2.jar",
+      "sha256": "0938c730961d32b331ea7e5cd7c6a822c0a889def79d1c3f2af4dd201fdddeb3",
+      "deps": []
+    },
+    {
+      "coordinates": "org.clojure/data.priority-map:1.2.0",
+      "target": "org_clojure_data_priority_map",
+      "path": "org/clojure/data.priority-map/1.2.0/data.priority-map-1.2.0.jar",
+      "sha256": "a4523626a1ccc4fce0d1efe6df16897fc3e34b58738f0462e4536af17dea02f0",
+      "deps": []
+    },
+    {
+      "coordinates": "org.clojure/data.xml:0.2.0-alpha11",
+      "target": "org_clojure_data_xml",
+      "path": "org/clojure/data.xml/0.2.0-alpha11/data.xml-0.2.0-alpha11.jar",
+      "sha256": "618f9b972254f759ea6d65636b5d06e81a0ca0392836ca7a3872125df4c2e143",
+      "deps": []
+    },
+    {
+      "coordinates": "org.clojure/spec.alpha:0.5.238",
+      "target": "org_clojure_spec_alpha",
+      "path": "org/clojure/spec.alpha/0.5.238/spec.alpha-0.5.238.jar",
+      "sha256": "94cd99b6ea639641f37af4860a643b6ed399ee5a8be5d717cff0b663c8d75077",
+      "deps": []
+    },
+    {
+      "coordinates": "org.clojure/tools.analyzer:1.2.0",
+      "target": "org_clojure_tools_analyzer",
+      "path": "org/clojure/tools.analyzer/1.2.0/tools.analyzer-1.2.0.jar",
+      "sha256": "7801a5a7ef4fd77f560c30a638594447c3aa71ee78b7f088553b7919bd0033bb",
+      "deps": []
+    },
+    {
+      "coordinates": "org.clojure/tools.analyzer.jvm:1.3.2",
+      "target": "org_clojure_tools_analyzer_jvm",
+      "path": "org/clojure/tools.analyzer.jvm/1.3.2/tools.analyzer.jvm-1.3.2.jar",
+      "sha256": "d8a2d59205a21281f305f3d5439ffc302182c307f9be962a76ce814a6620693d",
+      "deps": [
+        "org_clojure_core_memoize",
+        "org_clojure_tools_analyzer",
+        "org_clojure_tools_reader"
+      ]
+    },
+    {
+      "coordinates": "org.clojure/tools.cli:1.4.256",
+      "target": "org_clojure_tools_cli",
+      "path": "org/clojure/tools.cli/1.4.256/tools.cli-1.4.256.jar",
+      "sha256": "2a2d1769aa5ced5aa40e92c8ff568ea2751398b0ea45520308774ec2317abcee",
+      "deps": []
+    },
+    {
+      "coordinates": "org.clojure/tools.deps:0.31.1642",
+      "target": "org_clojure_tools_deps",
+      "path": "org/clojure/tools.deps/0.31.1642/tools.deps-0.31.1642.jar",
+      "sha256": "92897aaaa1efe76c790d79f94808b5ef21843b3952c1ccdbf16882d2a3561c18",
+      "deps": [
+        "eu_maveniverse_maven_mima_context",
+        "eu_maveniverse_maven_mima_extensions_mhc4",
+        "eu_maveniverse_maven_mima_extensions_mmr",
+        "eu_maveniverse_maven_mima_runtime_standalone_static",
+        "org_clojure_data_xml",
+        "org_clojure_tools_cli",
+        "org_clojure_tools_deps_edn",
+        "org_clojure_tools_deps_maven_s3_transporter",
+        "org_clojure_tools_gitlibs"
+      ]
+    },
+    {
+      "coordinates": "org.clojure/tools.deps.edn:0.9.48",
+      "target": "org_clojure_tools_deps_edn",
+      "path": "org/clojure/tools.deps.edn/0.9.48/tools.deps.edn-0.9.48.jar",
+      "sha256": "d155023ab9f2f54c6ed69e20b311d178656554e0fc629ed6f1ee8aa2a1fdf699",
+      "deps": []
+    },
+    {
+      "coordinates": "org.clojure/tools.deps.maven-s3-transporter:0.1.4",
+      "target": "org_clojure_tools_deps_maven_s3_transporter",
+      "path": "org/clojure/tools.deps.maven-s3-transporter/0.1.4/tools.deps.maven-s3-transporter-0.1.4.jar",
+      "sha256": "1268c3a369cf7a0e43cbabecb891335296e4b7bcf2ed7ee7fefda01fff68041c",
+      "deps": [
+        "com_cognitect_aws_api",
+        "com_cognitect_aws_endpoints",
+        "com_cognitect_aws_s3",
+        "eu_maveniverse_maven_mima_context",
+        "eu_maveniverse_maven_mima_runtime_standalone_static"
+      ]
+    },
+    {
+      "coordinates": "org.clojure/tools.gitlibs:2.6.217",
+      "target": "org_clojure_tools_gitlibs",
+      "path": "org/clojure/tools.gitlibs/2.6.217/tools.gitlibs-2.6.217.jar",
+      "sha256": "508b27e12f0609e61046496f7ecfee2b364698763c5754e33b3e78781b69a286",
+      "deps": []
+    },
+    {
+      "coordinates": "org.clojure/tools.logging:1.3.1",
+      "target": "org_clojure_tools_logging",
+      "path": "org/clojure/tools.logging/1.3.1/tools.logging-1.3.1.jar",
+      "sha256": "13fb97ea2472056ea0660d4f8e88b4f66486c2cfff380b82859ab3cd33592935",
+      "deps": []
+    },
+    {
+      "coordinates": "org.clojure/tools.reader:1.5.0",
+      "target": "org_clojure_tools_reader",
+      "path": "org/clojure/tools.reader/1.5.0/tools.reader-1.5.0.jar",
+      "sha256": "bfc8f709efb843f2ccc4daa93e2842ceb86e7b8d11d5544dc0ee68b6a0f4db3c",
+      "deps": []
+    },
+    {
+      "coordinates": "org.codehaus.plexus/plexus-cipher:2.0",
+      "target": "org_codehaus_plexus_plexus_cipher",
+      "path": "org/codehaus/plexus/plexus-cipher/2.0/plexus-cipher-2.0.jar",
+      "sha256": "9a7f1b5c5a9effd61eadfd8731452a2f76a8e79111fac391ef75ea801bea203a",
+      "deps": []
+    },
+    {
+      "coordinates": "org.codehaus.plexus/plexus-interpolation:1.29",
+      "target": "org_codehaus_plexus_plexus_interpolation",
+      "path": "org/codehaus/plexus/plexus-interpolation/1.29/plexus-interpolation-1.29.jar",
+      "sha256": "088d444dbcedfb384630d8686697ece3c401d6f33c8f8b3aa7259ea1c6996878",
+      "deps": []
+    },
+    {
+      "coordinates": "org.codehaus.plexus/plexus-sec-dispatcher:2.0",
+      "target": "org_codehaus_plexus_plexus_sec_dispatcher",
+      "path": "org/codehaus/plexus/plexus-sec-dispatcher/2.0/plexus-sec-dispatcher-2.0.jar",
+      "sha256": "873139960c4c780176dda580b003a2c4bf82188bdce5bb99234e224ef7acfceb",
+      "deps": [
+        "org_codehaus_plexus_plexus_cipher"
+      ]
+    },
+    {
+      "coordinates": "org.codehaus.plexus/plexus-utils:3.6.1",
+      "target": "org_codehaus_plexus_plexus_utils",
+      "path": "org/codehaus/plexus/plexus-utils/3.6.1/plexus-utils-3.6.1.jar",
+      "sha256": "05a63effd67e2d6b9d610cc82e2bd7473289d34802e57a529b28110f28af5679",
+      "deps": []
+    },
+    {
+      "coordinates": "org.ow2.asm/asm:9.9.1",
+      "target": "org_ow2_asm_asm",
+      "path": "org/ow2/asm/asm/9.9.1/asm-9.9.1.jar",
+      "sha256": "6f3828a215c920059a5efa2fb55c233d6c54ec5cadca99ce1b1bdd10077c7ddd",
+      "deps": []
+    },
+    {
+      "coordinates": "org.slf4j/jcl-over-slf4j:1.7.36",
+      "target": "org_slf4j_jcl_over_slf4j",
+      "path": "org/slf4j/jcl-over-slf4j/1.7.36/jcl-over-slf4j-1.7.36.jar",
+      "sha256": "ab57ca8fd223772c17365d121f59e94ecbf0ae59d08c03a3cb5b81071c019195",
+      "deps": [
+        "org_slf4j_slf4j_api"
+      ]
+    },
+    {
+      "coordinates": "org.slf4j/slf4j-api:1.7.36",
+      "target": "org_slf4j_slf4j_api",
+      "path": "org/slf4j/slf4j-api/1.7.36/slf4j-api-1.7.36.jar",
+      "sha256": "d3ef575e3e4979678dc01bf1dcce51021493b4d11fb7f1be8ad982877c16a1c0",
+      "deps": []
+    }
+  ]
+}

@@ -1,0 +1,13 @@
+load("@rules_clj//clojure:defs.bzl", "cljs_library")
+
+package(default_visibility = ["//visibility:public"])
+
+cljs_library(
+    name = "app",
+    srcs = ["main.cljs"],
+    compiler_options = {"optimizations": ":simple"},
+    main = "web.main",
+    output_file = "app.js",
+    strip_prefix = "src",
+    deps = ["@deps//:org_clojure_clojurescript"],
+)

@@ -145,6 +145,50 @@ and two checkouts of the same commit resolve identically by construction rather 
 The lockfile is checked in. It is the record of what the project actually depends on, and it
 belongs in review alongside the change that alters it.
 
+## Hermeticity and reproducibility
+
+Two properties, often conflated. A build is *hermetic* when its result does not depend on the
+machine it ran on; it is *reproducible* when the same inputs produce the same bytes. This ruleset
+treats both as requirements rather than aspirations, and the places where they do not hold are
+named rather than glossed.
+
+### What the build does not depend on
+
+| | |
+|---|---|
+| The Clojure on your machine | The runtime is three jars pinned by SHA-256 and fetched by Bazel (`clojure/extensions.bzl`). There is no `clj` on the path of any action. |
+| Your JDK | Actions use the JDK Bazel provides. The repository pins `remotejdk_21` for target and tool alike, and examples do the same. |
+| `~/.m2` | Nothing reads it. Dependencies are fetched by digest from the URLs the lockfile records. |
+| `~/.clojure/deps.edn` | Excluded when a lock is generated (`:user nil`). Leaving it in is a real trap: the first lock written here carried the author's nREPL, OpenTelemetry and Kotlin stdlib into a project that had asked for one JSON library. |
+| Dependency resolution | Happens once, when someone runs `//tools/lock`, and never during a build. A build with `--nofetch` succeeds. |
+| Build order | Each compile loads its own Clojure runtime in its own classloader, so no target can observe what another target loaded. |
+
+### What is reproducible, and how it was checked
+
+Jars are written by `Jars.java` with sorted entries and fixed timestamps, because directory
+iteration order and the current time are the two easiest ways to make identical inputs produce
+different bytes. Verified rather than assumed: building `//tests/conformance/src/conformance:protocols`
+twice with `bazel clean` in between produces the same SHA-256, and so does building it through the
+persistent worker versus a JVM per action.
+
+That last one is worth stating plainly, because it is where a Clojure build usually stops being
+reproducible. Clojure names anonymous functions with a counter that lives in the runtime, so
+compiling the same namespace into a runtime that has already compiled something else yields
+different class names. Compiling each target in a fresh runtime makes the counter start from the
+same place every time — the isolation the worker section argues for on correctness grounds turns
+out to be what makes the output deterministic too.
+
+### Where it does not hold
+
+- **Native images** (`clj_native_binary`, phase 5b). `native-image` shells out to the platform's
+  linker, so that action runs unsandboxed with the ambient environment. Everything up to the final
+  link is under Bazel's control; the link is not, and no amount of wishing changes it.
+- **The class data sharing archive**, when enabled. It embeds jar timestamps, which is precisely
+  why it must not be cached and why it is off by default.
+- **Timestamps inside dependency jars.** Third-party jars are byte-identical because they are
+  pinned by digest, but what is inside them is whoever built them's business.
+
+
 ## Public API
 
 One load path — `@rules_clj//clojure:defs.bzl` — and everything else is private.

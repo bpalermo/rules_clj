@@ -1,0 +1,4 @@
+exports_files([
+    "deps.edn",
+    "deps.lock.json",
+])

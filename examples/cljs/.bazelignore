@@ -1,0 +1,4 @@
+bazel-bin
+bazel-cljs
+bazel-out
+bazel-testlogs

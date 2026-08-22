@@ -22,6 +22,16 @@ use_repo(clojure, "rules_clj_clojure_1_12_1")
 
 register_toolchains("@rules_clj_clojure_1_12_1//:toolchain")
 
+# The lock tool's own dependencies, fetched through the same extension a consumer uses.
+# Its lockfile was generated once with the Clojure CLI and committed; nothing in a build
+# needs the CLI. See tools/lock.
+clj_deps = use_extension("//clojure:extensions.bzl", "deps", dev_dependency = True)
+clj_deps.install(
+    name = "rules_clj_lock_deps",
+    lock = "//tools/lock:deps.lock.json",
+)
+use_repo(clj_deps, "rules_clj_lock_deps")
+
 # --- development only, from here down ---------------------------------------
 #
 # A consumer of a ruleset should inherit the rules and nothing else. Everything

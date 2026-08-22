@@ -1,0 +1,15 @@
+# A project whose BUILD files are generated from its ns forms.
+#
+# Every BUILD.bazel under src/ was written by `bazel run //tools/tidy`, and CI re-runs it
+# in --mode=check so that editing an ns form without regenerating fails the build rather
+# than being discovered later.
+module(
+    name = "rules_clj_example_tidy",
+    version = "0.0.0",
+)
+
+bazel_dep(name = "rules_clj", version = "0.0.0")
+local_path_override(
+    module_name = "rules_clj",
+    path = "../..",
+)

@@ -36,6 +36,17 @@ analysis makes AOT a correctness requirement rather than an optimisation, the fi
 hermetic because it is the platform's, and GraalVM does not cross-compile. The design document
 says so plainly instead of finding out later.
 
+## What it does
+
+| | |
+|---|---|
+| `clj_library` | Compiles a namespace ahead of time, or packages it as source. One namespace per target, so one target's jar holds one target's work. |
+| `clj_binary`, `clj_test`, `clj_repl` | Run it. Tests report per-`deftest` results as JUnit XML, so a failure names the test rather than the target. |
+| `cljs_library` | ClojureScript through `cljs.main`. |
+| `clj_native_binary` | A GraalVM native image. The example starts in 0.01s against 0.28s for the same program on a JVM. |
+| `//tools/lock` | Resolves your `deps.edn` once into a lockfile. Builds then fetch by digest — no Clojure CLI, no `~/.m2`, no resolution at build time. |
+| `//tools/tidy` | Writes the BUILD files your `ns` forms imply, and `--mode=check` fails when they drift. |
+
 ## Using it
 
 ```starlark
