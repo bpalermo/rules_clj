@@ -1,0 +1,10 @@
+package(default_visibility = ["//visibility:public"])
+
+# MODULE.bazel is exported so that //bazel/dev:format_test can anchor itself to the
+# workspace root: buildifier_test in no-sandbox mode needs a file it can resolve to
+# find the tree it is meant to check.
+exports_files([
+    "LICENSE",
+    "MODULE.bazel",
+    "NOTICE",
+])

@@ -1,0 +1,46 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+# Least privilege: the default token permissions are write-heavy for every job.
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  bazel:
+    name: bazel ${{ matrix.bazel }} (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        bazel: ["8.6.0", "9.2.0"]
+    env:
+      # Takes precedence over .bazelversion, so one checkout covers both majors.
+      USE_BAZEL_VERSION: ${{ matrix.bazel }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: bazel-contrib/setup-bazel@0.19.0
+        with:
+          bazelisk-cache: true
+          disk-cache: ${{ github.workflow }}-${{ matrix.bazel }}
+          repository-cache: true
+          # Pull requests RESTORE caches but never SAVE them: only reviewed code should
+          # populate a cache a later trusted build consumes, and pull-request caches
+          # otherwise evict main's from the shared repository quota. Gated on the ref
+          # rather than the event, because workflow_dispatch can target any branch.
+          cache-save: ${{ github.ref == 'refs/heads/main' }}
+
+      # Formatting is a test target, so this covers it too.
+      - run: bazel test //...
+
+      # No JDK setup step: .bazelrc selects a hermetic remotejdk_21 for target and tool.

@@ -1,0 +1,27 @@
+rules_clj
+
+Copyright 2026 Bruno Palermo
+
+Licensed under the Apache License, Version 2.0. See LICENSE.
+
+
+Independent implementation
+--------------------------
+
+This is not a fork. Every line here is written from scratch, from Clojure's
+documented compilation semantics and Bazel's documented rule APIs.
+
+Prior art exists and is worth naming, because ideas travel even when code does
+not: simuons/rules_clojure and griffinbank/rules_clojure both solved parts of
+this problem first, and this project owes them the shape of the question — how
+Clojure's ahead-of-time compilation, which is transitive by default, can be made
+to fit a build graph that wants one output per unit of source. The answers here
+are arrived at independently and are deliberately structured differently: the
+compiler runs as a dependency-free Java shim rather than as Clojure sharing a
+classpath with user code, analysis runs in its own process instead of vendoring
+the libraries it needs, dependency resolution goes through a checked-in lockfile
+rather than a Clojure CLI download, and there is no persistent worker.
+
+No code, documentation, comments or test fixtures are copied from either
+project. Neither is affiliated with this one, and neither carries any copyright
+in it.

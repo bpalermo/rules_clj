@@ -1,0 +1,36 @@
+"""Development-only targets.
+
+Formatting is wired both ways round on purpose:
+
+    bazel run  //bazel/dev:format        rewrite files in place
+    bazel test //bazel/dev:format_test   fail if anything is unformatted
+
+so that `bazel test //...` covers formatting and CI needs no separate lint job.
+
+Starlark only, for now. There is no Clojure formatter here yet because there is no
+Clojure here yet; cljfmt joins this list when the analyzer lands in phase 3.
+"""
+
+load("@buildifier_prebuilt//:rules.bzl", "buildifier", "buildifier_test")
+
+package(default_visibility = ["//visibility:private"])
+
+buildifier(
+    name = "format",
+    exclude_patterns = ["./.git/*"],
+    lint_mode = "fix",
+    mode = "fix",
+)
+
+# no_sandbox, because the point is to check the real tree rather than a copy of the
+# files someone remembered to list. The wrapper adds the no-cache and external tags
+# that go with it.
+buildifier_test(
+    name = "format_test",
+    size = "small",
+    exclude_patterns = ["./.git/*"],
+    lint_mode = "warn",
+    mode = "diff",
+    no_sandbox = True,
+    workspace = "//:MODULE.bazel",
+)
