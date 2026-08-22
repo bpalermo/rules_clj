@@ -14,10 +14,20 @@ ARCHIVE="rules_clj-${TAG}.tar.gz"
 
 git archive --format=tar --prefix="${PREFIX}/" "${TAG}" | gzip > "${ARCHIVE}"
 
-# Checked rather than trusted: a mismatch here is caught now, not by BCR much later with a
-# far less obvious message.
-declared=$(tar -xzOf "${ARCHIVE}" "${PREFIX}/MODULE.bazel" \
-  | grep -oE 'version = "[^"]+"' | head -1 | cut -d'"' -f2)
+# Checked against the ARCHIVE rather than the working tree, deliberately: this is the
+# file BCR will read, and a mismatch caught here is far cheaper than the same mismatch
+# reported by the registry after a tag exists.
+#
+# Parsed by the workspace-status script, the same one the release workflow uses, so there
+# is one version regex in the repository rather than three. It reads MODULE.bazel from
+# the working directory, so the check runs from inside the extracted tree.
+status_script="${PWD}/bazel/tools/workspace_status.sh"
+unpacked="$(mktemp -d)"
+trap 'rm -rf "${unpacked}"' EXIT
+tar -xzf "${ARCHIVE}" -C "${unpacked}" "${PREFIX}/MODULE.bazel"
+declared=$(cd "${unpacked}/${PREFIX}" && "${status_script}" |
+    awk '$1 == "STABLE_VERSION" { print $2 }')
+
 if [ "${declared}" != "${TAG#v}" ]; then
   echo "archived MODULE.bazel declares '${declared}', tag is '${TAG#v}'" >&2
   exit 1

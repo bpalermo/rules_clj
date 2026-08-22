@@ -14,7 +14,7 @@ module(
     version = "0.1.0-rc1",
 )
 
-bazel_dep(name = "bazel_skylib", version = "1.9.0")
+bazel_dep(name = "bazel_skylib", version = "1.9.2")
 
 # Bazel 9 reduced the native java_* rules to stubs and moved JavaInfo and
 # java_common out of the Starlark globals, so both the rules and the BUILD files

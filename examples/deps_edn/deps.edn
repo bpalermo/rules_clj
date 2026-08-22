@@ -2,4 +2,4 @@
 ;; Clojure project already has is the file the build reads.
 {:paths ["src"]
  :deps {org.clojure/clojure {:mvn/version "1.12.1"}
-        org.clojure/data.json {:mvn/version "2.5.1"}}}
+        org.clojure/data.json {:mvn/version "2.5.2"}}}
