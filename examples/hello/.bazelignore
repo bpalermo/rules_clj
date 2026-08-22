@@ -1,0 +1,8 @@
+# Bazel's convenience symlinks. They normally look after themselves, but they point
+# into one version's output base, and switching Bazel versions in the same checkout
+# leaves them pointing at a tree the new version will happily try to walk — which
+# fails on whatever external repo it finds in there first.
+bazel-bin
+bazel-hello
+bazel-out
+bazel-testlogs

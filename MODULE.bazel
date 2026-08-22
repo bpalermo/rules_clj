@@ -9,6 +9,19 @@ module(
 
 bazel_dep(name = "bazel_skylib", version = "1.9.0")
 
+# Bazel 9 reduced the native java_* rules to stubs and moved JavaInfo and
+# java_common out of the Starlark globals, so both the rules and the BUILD files
+# here take them from rules_java.
+bazel_dep(name = "rules_java", version = "9.8.0")
+
+# The Clojure runtime: three jars pinned by digest, exposed as a toolchain. Not
+# rules_jvm_external — see clojure/extensions.bzl for why a resolver is the wrong
+# tool for a fixed list of three files.
+clojure = use_extension("//clojure:extensions.bzl", "clojure")
+use_repo(clojure, "rules_clj_clojure_1_12_1")
+
+register_toolchains("@rules_clj_clojure_1_12_1//:toolchain")
+
 # --- development only, from here down ---------------------------------------
 #
 # A consumer of a ruleset should inherit the rules and nothing else. Everything

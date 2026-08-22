@@ -41,6 +41,13 @@ jobs:
           cache-save: ${{ github.ref == 'refs/heads/main' }}
 
       # Formatting is a test target, so this covers it too.
-      - run: bazel test //...
+      - name: the ruleset
+        run: bazel test //...
+
+      # examples/ is in .bazelignore: each is its own module, consuming rules_clj the
+      # way a stranger would, and is the only place the rules are exercised end to end.
+      - name: examples/hello
+        working-directory: examples/hello
+        run: bazel test //...
 
       # No JDK setup step: .bazelrc selects a hermetic remotejdk_21 for target and tool.

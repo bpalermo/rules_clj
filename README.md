@@ -2,10 +2,10 @@
 
 Bazel rules for Clojure.
 
-> **Status: phase 0 — skeleton.** There are no rules here yet. The design is written
-> ([`docs/design.md`](docs/design.md)) and the repository builds and checks itself; the API
-> arrives in phase 1. Nothing is published to the Bazel Central Registry, and the version is
-> deliberately `0.0.0` so that nothing can depend on it by accident.
+> **Status: phase 1 — packaging and running.** `clj_library`, `clj_binary`, `clj_test` and
+> `clj_repl` work; sources are packaged, not yet compiled, so `aot` and the compiler shim arrive
+> in phase 2. Nothing is published to the Bazel Central Registry, and the version is deliberately
+> `0.0.0` so that nothing can depend on it by accident.
 
 ## Why another one
 
@@ -35,6 +35,44 @@ rather than an afterthought — and it is the rule with the most sharp edges: cl
 analysis makes AOT a correctness requirement rather than an optimisation, the final link is not
 hermetic because it is the platform's, and GraalVM does not cross-compile. The design document
 says so plainly instead of finding out later.
+
+## Using it
+
+```starlark
+# MODULE.bazel
+bazel_dep(name = "rules_clj", version = "0.0.0")
+```
+
+```starlark
+# src/example/BUILD.bazel
+load("@rules_clj//clojure:defs.bzl", "clj_binary", "clj_library", "clj_test")
+
+clj_library(
+    name = "greeting",
+    srcs = ["greeting.clj"],
+    namespaces = ["example.greeting"],
+    strip_prefix = "src",   # so example.greeting resolves to example/greeting.clj
+)
+
+clj_binary(
+    name = "hello",
+    main = "example.greeting",
+    deps = [":greeting"],
+)
+
+clj_test(
+    name = "greeting_test",
+    ns = "example.greeting-test",
+    deps = [":greeting_test_lib"],
+)
+```
+
+A Clojure runtime comes with the rules — three jars pinned by digest, registered as a
+toolchain, no Maven resolver involved. Override it by registering your own `clj_toolchain`.
+
+`clj_test` runs one namespace per target, and writes a JUnit XML report so a failure names the
+`deftest` and the line rather than just the target. See [`examples/hello`](examples/hello) for a
+module that builds, runs and tests.
 
 ## Development
 

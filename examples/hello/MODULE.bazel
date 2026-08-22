@@ -1,0 +1,15 @@
+# The hello-world example, and the first proof that rules_clj works from outside
+# itself: a separate module that depends on it the way a consumer would.
+module(
+    name = "rules_clj_example_hello",
+    version = "0.0.0",
+)
+
+bazel_dep(name = "rules_clj", version = "0.0.0")
+
+# Resolves to the ruleset under test. Also what a BCR test module uses, where the
+# path lands on the extracted release archive.
+local_path_override(
+    module_name = "rules_clj",
+    path = "../..",
+)

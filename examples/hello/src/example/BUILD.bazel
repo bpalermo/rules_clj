@@ -1,0 +1,21 @@
+load("@rules_clj//clojure:defs.bzl", "clj_binary", "clj_library", "clj_repl")
+
+package(default_visibility = ["//visibility:public"])
+
+clj_library(
+    name = "greeting",
+    srcs = ["greeting.clj"],
+    namespaces = ["example.greeting"],
+    strip_prefix = "src",
+)
+
+clj_binary(
+    name = "hello",
+    main = "example.greeting",
+    deps = [":greeting"],
+)
+
+clj_repl(
+    name = "repl",
+    deps = [":greeting"],
+)

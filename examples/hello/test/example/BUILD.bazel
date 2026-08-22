@@ -1,0 +1,16 @@
+load("@rules_clj//clojure:defs.bzl", "clj_library", "clj_test")
+
+clj_library(
+    name = "greeting_test_lib",
+    testonly = True,
+    srcs = ["greeting_test.clj"],
+    namespaces = ["example.greeting-test"],
+    strip_prefix = "test",
+    deps = ["//src/example:greeting"],
+)
+
+clj_test(
+    name = "greeting_test",
+    ns = "example.greeting-test",
+    deps = [":greeting_test_lib"],
+)

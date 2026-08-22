@@ -2,7 +2,17 @@
 
 Consumers load from `@rules_clj//clojure:defs.bzl` and from nowhere else; every
 other package in this repository is an implementation detail and may change
-without notice. `defs.bzl` arrives in phase 1.
+without notice.
 """
 
 package(default_visibility = ["//visibility:public"])
+
+exports_files([
+    "defs.bzl",
+    "toolchain.bzl",
+    "extensions.bzl",
+])
+
+# Resolved by clj_library, and re-exported to the java_* macros through
+# //clojure/runtime:clojure. See clojure/toolchain.bzl.
+toolchain_type(name = "toolchain_type")

@@ -24,16 +24,21 @@ that difference is worth preserving even where a similar-looking shortcut exists
 
 | | |
 |---|---|
-| `clojure/defs.bzl` | the public API — the only load path consumers use (phase 1) |
+| `clojure/defs.bzl` | the public API — the only load path consumers use |
 | `clojure/private/` | rule implementations; may change without notice |
+| `clojure/toolchain.bzl` | the toolchain type, `clj_toolchain`, and the runtime alias the java_* macros depend on |
+| `clojure/extensions.bzl` | the module extension that fetches Clojure, pinned by digest |
+| `clojure/runtime/` | what lands on a program's classpath: the toolchain's Clojure, and the test runner |
 | `bazel/dev/` | formatting, wired as both a runnable target and a test |
 | `docs/design.md` | the specification |
+| `examples/hello/` | a consumer module — its own Bazel module, run from its own directory |
 
 ## Commands
 
 ```sh
 bazel test //...                   # everything, including //bazel/dev:format_test
 bazel run //bazel/dev:format       # rewrite Starlark in place
+(cd examples/hello && bazel test //...)
 ```
 
 Formatting is a test, so an unformatted file fails `bazel test //...` rather than a separate CI

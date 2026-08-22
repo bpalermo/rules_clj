@@ -1,0 +1,21 @@
+"""What ends up on a Clojure program's classpath.
+
+Two things: the Clojure runtime the toolchain selected, and the test runner.
+"""
+
+load("@rules_java//java:defs.bzl", "java_library")
+load("//clojure:toolchain.bzl", "clj_runtime_alias")
+
+package(default_visibility = ["//visibility:public"])
+
+# The toolchain's Clojure, as a plain dependency the java_* macros can name.
+clj_runtime_alias(name = "clojure")
+
+# The runner ships as source rather than compiled: it is loaded once per test JVM,
+# where the cost is noise, and shipping source means it is the same artifact on
+# every Clojure version rather than one AOT'd against a particular one.
+java_library(
+    name = "runner",
+    resource_strip_prefix = "clojure/runtime",
+    resources = ["rules_clj/runner.clj"],
+)

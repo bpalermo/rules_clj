@@ -7,3 +7,6 @@ MODULE.bazel.lock
 .lsp/
 .clj-kondo/.cache/
 .nrepl-port
+
+# Bazel convenience symlinks inside example modules
+examples/*/bazel-*

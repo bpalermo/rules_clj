@@ -1,0 +1,16 @@
+"""Public API of rules_clj.
+
+This is the only load path with a compatibility promise. Everything under
+//clojure/private is an implementation detail and may change without notice.
+"""
+
+load("//clojure/private:binary.bzl", _clj_binary = "clj_binary", _clj_repl = "clj_repl")
+load("//clojure/private:library.bzl", _clj_library = "clj_library")
+load("//clojure/private:providers.bzl", _ClojureInfo = "ClojureInfo")
+load("//clojure/private:test.bzl", _clj_test = "clj_test")
+
+clj_library = _clj_library
+clj_binary = _clj_binary
+clj_test = _clj_test
+clj_repl = _clj_repl
+ClojureInfo = _ClojureInfo
