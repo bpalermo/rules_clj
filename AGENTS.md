@@ -34,7 +34,9 @@ that difference is worth preserving even where a similar-looking shortcut exists
 | `tests/shim/` | drives the shim's guard into failure states a well-formed BUILD file cannot produce |
 | `bazel/dev/` | formatting, wired as both a runnable target and a test |
 | `docs/design.md` | the specification |
-| `examples/hello/` | a consumer module — its own Bazel module, run from its own directory |
+| `tools/lock/` | deps.edn -> lockfile, via tools.deps. Its own dependency lock is committed and self-hosting |
+| `tools/tidy/` | BUILD generation from ns forms, with a `--mode=check` drift gate |
+| `examples/` | one module per capability: hello, deps_edn, tidy, cljs, native. Each is its own Bazel module, run from its own directory |
 
 ## Commands
 
@@ -42,7 +44,12 @@ that difference is worth preserving even where a similar-looking shortcut exists
 bazel test //...                   # everything, including //bazel/dev:format_test
 bazel run //bazel/dev:format       # rewrite Starlark in place
 (cd examples/hello && bazel test //...)
+
+bazel run //tools/lock -- --deps-edn=/abs/path/deps.edn --output=/abs/path/deps.lock.json
+bazel run //tools/tidy -- --root=/abs/path/src --strip-prefix=src --package-prefix=src
 ```
+
+`examples/native` is not in CI: building it downloads a GraalVM. Run it by hand.
 
 Formatting is a test, so an unformatted file fails `bazel test //...` rather than a separate CI
 job. Run the format target before committing.

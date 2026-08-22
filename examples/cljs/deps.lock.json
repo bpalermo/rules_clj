@@ -1,0 +1,124 @@
+{
+  "version": 1,
+  "repositories": [
+    "https://repo1.maven.org/maven2/",
+    "https://repo.clojars.org/"
+  ],
+  "artifacts": [
+    {
+      "coordinates": "com.cognitect/transit-java:1.0.362",
+      "target": "com_cognitect_transit_java",
+      "path": "com/cognitect/transit-java/1.0.362/transit-java-1.0.362.jar",
+      "sha256": "eb68573d46dda85601cc63d9b1c287feb5e89e76e92502e826efd0a323f7cb54",
+      "deps": [
+        "com_fasterxml_jackson_core_jackson_core",
+        "javax_xml_bind_jaxb_api",
+        "org_msgpack_msgpack"
+      ]
+    },
+    {
+      "coordinates": "com.fasterxml.jackson.core/jackson-core:2.8.7",
+      "target": "com_fasterxml_jackson_core_jackson_core",
+      "path": "com/fasterxml/jackson/core/jackson-core/2.8.7/jackson-core-2.8.7.jar",
+      "sha256": "256ff34118ab292d1b4f3ee4d2c3e5e5f0f609d8e07c57e8ad1f51c46d4fbb46",
+      "deps": []
+    },
+    {
+      "coordinates": "com.google.javascript/closure-compiler-unshaded:v20220502",
+      "target": "com_google_javascript_closure_compiler_unshaded",
+      "path": "com/google/javascript/closure-compiler-unshaded/v20220502/closure-compiler-unshaded-v20220502.jar",
+      "sha256": "590c794057a9ffb4818a4aa0d140f91bc1aa0afe7b421b628c957ec1732d9a4d",
+      "deps": []
+    },
+    {
+      "coordinates": "com.googlecode.json-simple/json-simple:1.1.1",
+      "target": "com_googlecode_json_simple_json_simple",
+      "path": "com/googlecode/json-simple/json-simple/1.1.1/json-simple-1.1.1.jar",
+      "sha256": "4e69696892b88b41c55d49ab2fdcc21eead92bf54acc588c0050596c3b75199c",
+      "deps": []
+    },
+    {
+      "coordinates": "javax.xml.bind/jaxb-api:2.3.0",
+      "target": "javax_xml_bind_jaxb_api",
+      "path": "javax/xml/bind/jaxb-api/2.3.0/jaxb-api-2.3.0.jar",
+      "sha256": "883007989d373d19f352ba9792b25dec21dc7d0e205a710a93a3815101bb3d03",
+      "deps": []
+    },
+    {
+      "coordinates": "org.clojure/clojure:1.12.1",
+      "target": "org_clojure_clojure",
+      "path": "org/clojure/clojure/1.12.1/clojure-1.12.1.jar",
+      "sha256": "87eeea9e355d86c045738af494d683e09e914cb0467ae40d46a66b87a36c72d4",
+      "deps": [
+        "org_clojure_core_specs_alpha",
+        "org_clojure_spec_alpha"
+      ]
+    },
+    {
+      "coordinates": "org.clojure/clojurescript:1.11.132",
+      "target": "org_clojure_clojurescript",
+      "path": "org/clojure/clojurescript/1.11.132/clojurescript-1.11.132.jar",
+      "sha256": "3657c2d5db7ea8ea46cee01eff0343771501a9d4882c60622535f46635290151",
+      "deps": [
+        "com_cognitect_transit_java",
+        "com_google_javascript_closure_compiler_unshaded",
+        "org_clojure_google_closure_library",
+        "org_clojure_tools_reader"
+      ]
+    },
+    {
+      "coordinates": "org.clojure/core.specs.alpha:0.4.74",
+      "target": "org_clojure_core_specs_alpha",
+      "path": "org/clojure/core.specs.alpha/0.4.74/core.specs.alpha-0.4.74.jar",
+      "sha256": "eb73ac08cf49ba840c88ba67beef11336ca554333d9408808d78946e0feb9ddb",
+      "deps": []
+    },
+    {
+      "coordinates": "org.clojure/google-closure-library:0.0-20230227-c7c0a541",
+      "target": "org_clojure_google_closure_library",
+      "path": "org/clojure/google-closure-library/0.0-20230227-c7c0a541/google-closure-library-0.0-20230227-c7c0a541.jar",
+      "sha256": "1485aa95e7730f84acbba11b865190c538b88f41f0107b47f52fdd85384d414b",
+      "deps": [
+        "org_clojure_google_closure_library_third_party"
+      ]
+    },
+    {
+      "coordinates": "org.clojure/google-closure-library-third-party:0.0-20230227-c7c0a541",
+      "target": "org_clojure_google_closure_library_third_party",
+      "path": "org/clojure/google-closure-library-third-party/0.0-20230227-c7c0a541/google-closure-library-third-party-0.0-20230227-c7c0a541.jar",
+      "sha256": "6a43811e210c2fe503b1965e2719b787b82a7cd6d5201d30377ff7ec16d9694a",
+      "deps": []
+    },
+    {
+      "coordinates": "org.clojure/spec.alpha:0.5.238",
+      "target": "org_clojure_spec_alpha",
+      "path": "org/clojure/spec.alpha/0.5.238/spec.alpha-0.5.238.jar",
+      "sha256": "94cd99b6ea639641f37af4860a643b6ed399ee5a8be5d717cff0b663c8d75077",
+      "deps": []
+    },
+    {
+      "coordinates": "org.clojure/tools.reader:1.3.6",
+      "target": "org_clojure_tools_reader",
+      "path": "org/clojure/tools.reader/1.3.6/tools.reader-1.3.6.jar",
+      "sha256": "11d1b31f2c65c3355b292bb9b44b8fcafda54b44da63e34ab97b79a8ab3bb8e0",
+      "deps": []
+    },
+    {
+      "coordinates": "org.javassist/javassist:3.18.1-GA",
+      "target": "org_javassist_javassist",
+      "path": "org/javassist/javassist/3.18.1-GA/javassist-3.18.1-GA.jar",
+      "sha256": "3fb71231afd098bb0f93f5eb97aa8291c8d0556379125e596f92ec8f944c6162",
+      "deps": []
+    },
+    {
+      "coordinates": "org.msgpack/msgpack:0.6.12",
+      "target": "org_msgpack_msgpack",
+      "path": "org/msgpack/msgpack/0.6.12/msgpack-0.6.12.jar",
+      "sha256": "e09ca65d8520488e80a5dc426848a8afccfd40f4a2eb3b9646042595d3bd9b5e",
+      "deps": [
+        "com_googlecode_json_simple_json_simple",
+        "org_javassist_javassist"
+      ]
+    }
+  ]
+}

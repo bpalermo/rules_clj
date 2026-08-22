@@ -1,0 +1,104 @@
+name: release
+
+on:
+  # `*` matches any character except `/`, so the last one absorbs the suffix in
+  # v0.1.0-rc1: prerelease tags trigger this too and are marked as such below.
+  push:
+    tags: ["v*.*.*"]
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: "Tag to release, e.g. v0.1.0"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  # Fail in seconds on a misconfigured release rather than after the whole pipeline.
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: MODULE.bazel must agree with the tag
+        env:
+          TAG: ${{ inputs.tag_name || github.ref_name }}
+        run: |
+          version="${TAG#v}"
+          modver=$(grep -oE 'version = "[^"]+"' MODULE.bazel | head -1 | cut -d'"' -f2)
+          if [ "$modver" != "$version" ]; then
+            echo "::error::MODULE.bazel declares '$modver' but the tag is '$version'" >&2
+            exit 1
+          fi
+          echo "releasing $version"
+
+      # The BCR entry's commit author must be the address the Google CLA is signed under:
+      # bazelbuild/bazel-central-registry checks it, and the failure otherwise arrives
+      # after the release is published and the tag can no longer move. A repository
+      # variable rather than a literal, because this repository is public.
+      - name: the CLA author address must be configured
+        env:
+          BCR_AUTHOR_EMAIL: ${{ vars.BCR_AUTHOR_EMAIL }}
+        run: |
+          if [ -z "${BCR_AUTHOR_EMAIL}" ]; then
+            echo "::error::set the BCR_AUTHOR_EMAIL repository variable to the CLA address" >&2
+            exit 1
+          fi
+          echo "BCR_AUTHOR_EMAIL is set (${#BCR_AUTHOR_EMAIL} chars)"
+
+  # Through bazel-contrib's workflow rather than `gh release create`: BCR verifies that a
+  # module's source archive was attested by release_ruleset and rejects anything else.
+  # draft: true so assets can be attached while the release is still mutable.
+  release:
+    needs: check
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    uses: bazel-contrib/.github/.github/workflows/release_ruleset.yaml@v7.7.0
+    with:
+      bazel_test_command: "bazel test //..."
+      draft: true
+      prerelease: ${{ contains(inputs.tag_name || github.ref_name, '-') }}
+      release_files: rules_clj-*.tar.gz
+      tag_name: ${{ inputs.tag_name || github.ref_name }}
+
+  # Called directly, not through a wrapper: a wrapper relying on `secrets: inherit` for
+  # this workflow's REQUIRED publish_token fails startup validation for every job here.
+  publish-to-bcr:
+    needs: release
+    permissions:
+      attestations: write
+      contents: write
+      id-token: write
+    uses: bazel-contrib/publish-to-bcr/.github/workflows/publish.yaml@v1.5.0
+    with:
+      tag_name: ${{ inputs.tag_name || github.ref_name }}
+      registry_fork: bpalermo/bazel-central-registry
+      # A prerelease pushes the entry to the fork but opens no upstream pull request. BCR
+      # is add-only, so a release candidate merged there is permanent, and rehearsing
+      # should not spend reviewers' attention.
+      open_pull_request: ${{ !contains(inputs.tag_name || github.ref_name, '-') }}
+      environment: bcr-publish
+      download_default_release_artifacts: true
+      author_name: Bruno Palermo
+      author_email: ${{ vars.BCR_AUTHOR_EMAIL }}
+    # Mapped explicitly, NOT inherited: PUBLISH_TOKEN is an environment secret, and
+    # `inherit` passes only repository and organization secrets. This expression is empty
+    # here, and the environment secret shadows it inside the callee's job.
+    secrets:
+      publish_token: ${{ secrets.PUBLISH_TOKEN }}
+
+  # Last, because it is the only irreversible and publicly visible step.
+  finalize:
+    needs: [check, publish-to-bcr]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - env:
+          TAG: ${{ inputs.tag_name || github.ref_name }}
+          GH_TOKEN: ${{ github.token }}
+        run: gh release edit "$TAG" --draft=false --repo "$GITHUB_REPOSITORY"

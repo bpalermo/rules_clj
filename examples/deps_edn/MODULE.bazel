@@ -1,0 +1,22 @@
+# A project whose dependencies come from its deps.edn.
+#
+# Resolution happened once, when someone ran //tools/lock and committed deps.lock.json.
+# This build fetches exactly what that file names, by digest: no Clojure CLI, no ~/.m2,
+# and no version solving at build time.
+module(
+    name = "rules_clj_example_deps_edn",
+    version = "0.0.0",
+)
+
+bazel_dep(name = "rules_clj", version = "0.0.0")
+local_path_override(
+    module_name = "rules_clj",
+    path = "../..",
+)
+
+deps = use_extension("@rules_clj//clojure:extensions.bzl", "deps")
+deps.install(
+    name = "deps",
+    lock = "//:deps.lock.json",
+)
+use_repo(deps, "deps")

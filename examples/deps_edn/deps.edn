@@ -1,0 +1,5 @@
+;; An ordinary deps.edn. Nothing here is Bazel-specific — the point is that the file a
+;; Clojure project already has is the file the build reads.
+{:paths ["src"]
+ :deps {org.clojure/clojure {:mvn/version "1.12.1"}
+        org.clojure/data.json {:mvn/version "2.5.1"}}}

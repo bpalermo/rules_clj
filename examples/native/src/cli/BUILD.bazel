@@ -1,0 +1,26 @@
+load("@rules_clj//clojure:defs.bzl", "clj_binary", "clj_library", "clj_native_binary")
+
+package(default_visibility = ["//visibility:public"])
+
+clj_library(
+    name = "main",
+    srcs = ["main.clj"],
+    # aot is on by default, and for a native image it is not optional: closed-world
+    # analysis cannot reach a namespace that would be loaded from source at runtime.
+    namespaces = ["cli.main"],
+    strip_prefix = "src",
+)
+
+clj_binary(
+    name = "cli",
+    main_class = "cli.main",
+    deps = [":main"],
+)
+
+clj_native_binary(
+    name = "cli_native",
+    binary_name = "hello",
+    jar = ":cli_deploy.jar",
+    # Manual: building this downloads a GraalVM. Run it deliberately.
+    tags = ["manual"],
+)

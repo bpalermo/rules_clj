@@ -1,0 +1,16 @@
+load("@rules_clj//clojure:defs.bzl", "clj_library", "clj_test")
+
+clj_library(
+    name = "config_test_lib",
+    testonly = True,
+    srcs = ["config_test.clj"],
+    namespaces = ["app.config-test"],
+    strip_prefix = "test",
+    deps = ["//src/app:config"],
+)
+
+clj_test(
+    name = "config_test",
+    ns = "app.config-test",
+    deps = [":config_test_lib"],
+)

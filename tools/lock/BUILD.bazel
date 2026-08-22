@@ -1,0 +1,27 @@
+"""The lockfile generator.
+
+Resolution is delegated to tools.deps, which is the same code `clj` uses, so a lock
+agrees with what a Clojure developer gets on the command line. Running it is a deliberate
+act — `bazel run //tools/lock -- --deps-edn=... --output=...` — because a lockfile belongs
+in review alongside the change that alters it.
+"""
+
+load("//clojure:defs.bzl", "clj_binary", "clj_library")
+
+package(default_visibility = ["//visibility:public"])
+
+exports_files(["deps.lock.json"])
+
+clj_library(
+    name = "lock_lib",
+    srcs = ["rules_clj/lock.clj"],
+    namespaces = ["rules-clj.lock"],
+    strip_prefix = "tools/lock",
+    deps = ["@rules_clj_lock_deps//:org_clojure_tools_deps"],
+)
+
+clj_binary(
+    name = "lock",
+    main = "rules-clj.lock",
+    deps = [":lock_lib"],
+)

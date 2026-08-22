@@ -1,0 +1,25 @@
+"""BUILD generation from ns forms.
+
+  bazel run //tools/tidy -- --root=src --strip-prefix=src --package-prefix=src
+  bazel run //tools/tidy -- --root=src ... --mode=check     # fails if stale
+
+No third-party dependencies: the ns form is read with Clojure's own reader, which cannot
+disagree with the compiler about what a namespace requires.
+"""
+
+load("//clojure:defs.bzl", "clj_binary", "clj_library")
+
+package(default_visibility = ["//visibility:public"])
+
+clj_library(
+    name = "tidy_lib",
+    srcs = ["rules_clj/tidy.clj"],
+    namespaces = ["rules-clj.tidy"],
+    strip_prefix = "tools/tidy",
+)
+
+clj_binary(
+    name = "tidy",
+    main = "rules-clj.tidy",
+    deps = [":tidy_lib"],
+)

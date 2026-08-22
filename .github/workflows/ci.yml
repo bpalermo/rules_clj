@@ -52,8 +52,32 @@ jobs:
 
       # examples/ is in .bazelignore: each is its own module, consuming rules_clj the
       # way a stranger would, and is the only place the rules are exercised end to end.
+      #
+      # examples/native is absent on purpose: building it downloads a GraalVM, which is
+      # not a reasonable thing to make every pull request pay for. It is exercised by
+      # hand; see its README.
       - name: examples/hello
         working-directory: examples/hello
         run: bazel test //...
+
+      - name: examples/deps_edn
+        working-directory: examples/deps_edn
+        run: bazel test //...
+
+      - name: examples/tidy
+        working-directory: examples/tidy
+        run: bazel test //...
+
+      - name: examples/cljs
+        working-directory: examples/cljs
+        run: bazel build //src/web:app
+
+      # The generated BUILD files must match the ns forms they came from. Editing an ns
+      # without regenerating fails here rather than being found by the next person.
+      - name: BUILD files are not stale
+        run: |
+          bazel run //tools/tidy -- \
+            --root="$PWD/examples/tidy/src" \
+            --strip-prefix=src --package-prefix=src --mode=check
 
       # No JDK setup step: .bazelrc selects a hermetic remotejdk_21 for target and tool.

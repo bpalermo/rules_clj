@@ -11,13 +11,18 @@ package(default_visibility = ["//visibility:public"])
 
 exports_files([
     "defs.bzl",
-    "toolchain.bzl",
     "extensions.bzl",
+    "native_toolchain.bzl",
+    "toolchain.bzl",
 ])
 
 # Resolved by clj_library, and re-exported to the java_* macros through
 # //clojure/runtime:clojure. See clojure/toolchain.bzl.
 toolchain_type(name = "toolchain_type")
+
+# Separate from the Clojure toolchain: only a build that produces a native binary needs a
+# GraalVM, and nobody should download one to discover they did not want it.
+toolchain_type(name = "native_toolchain_type")
 
 # How compile actions use the class data sharing archive (clojure/private/cds.bzl):
 #

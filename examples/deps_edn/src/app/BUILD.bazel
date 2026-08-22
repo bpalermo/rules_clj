@@ -1,0 +1,13 @@
+load("@rules_clj//clojure:defs.bzl", "clj_library")
+
+package(default_visibility = ["//visibility:public"])
+
+clj_library(
+    name = "config",
+    srcs = ["config.clj"],
+    namespaces = ["app.config"],
+    strip_prefix = "src",
+    # One library, not the whole lock: @deps//:all exists but naming what you use keeps
+    # the classpath honest and rebuilds narrow.
+    deps = ["@deps//:org_clojure_data_json"],
+)
