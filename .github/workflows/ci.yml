@@ -81,3 +81,35 @@ jobs:
             --strip-prefix=src --package-prefix=src --mode=check
 
       # No JDK setup step: .bazelrc selects a hermetic remotejdk_21 for target and tool.
+
+  # The single check branch protection requires, and the only reason this job exists.
+  #
+  # A required status check is matched by CHECK RUN name, which for a matrix is the
+  # generated one — "bazel 9.2.0 (ubuntu-latest)" and its three siblings — not the
+  # workflow's name. Requiring those directly works until the matrix changes: bump
+  # 9.2.0 to 9.3.0 and the required check can never report again, so every pull request
+  # is blocked by something that will never turn green. Requiring one aggregate instead
+  # leaves the matrix free to change.
+  #
+  # if: always() so it runs even when a leg fails — a skipped job reports nothing, and a
+  # required check that never reports blocks the pull request instead of failing it.
+  ci:
+    name: ci
+    needs: [bazel]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      # Reads the results rather than naming the jobs, so adding a job to `needs` above
+      # is enough to have it gate merges. Spelling out one job by name was the first
+      # version and it was quietly wrong: the step claimed to check every job while
+      # checking one, and would have gone on claiming it after a second job appeared.
+      - name: every job this depends on must have succeeded
+        run: |
+          results="${{ join(needs.*.result, ' ') }}"
+          echo "results: ${results}"
+          for result in ${results}; do
+            if [ "${result}" != "success" ]; then
+              echo "::error::a required job reported '${result}'" >&2
+              exit 1
+            fi
+          done
