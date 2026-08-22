@@ -1,0 +1,7 @@
+# Every change here needs my review, including changes to the automation that publishes
+# releases — which is the part where a mistake reaches other people's builds.
+#
+# GitHub only enforces this when branch protection requires review from code owners;
+# without that it requests the review and nothing more. See the repository's branch
+# protection settings.
+* @bpalermo
