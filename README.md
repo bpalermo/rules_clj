@@ -51,7 +51,7 @@ says so plainly instead of finding out later.
 
 ```starlark
 # MODULE.bazel
-bazel_dep(name = "rules_clj", version = "0.0.0")
+bazel_dep(name = "rules_clj", version = "0.1.0")
 ```
 
 ```starlark

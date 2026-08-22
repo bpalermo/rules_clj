@@ -51,3 +51,14 @@ build --tool_java_runtime_version=remotejdk_21
 
 Tested with Bazel 8.x and 9.x on Linux and macOS.
 NOTES
+
+# A note to whoever cuts the release, printed where they will see it rather than
+# buried in a workflow comment.
+cat >&2 <<'REMINDER'
+
+  Reminder: the Bazel Central Registry pull request is NOT opened automatically.
+  PUBLISH_TOKEN is a fine-grained PAT scoped to the registry fork, and GitHub does
+  not permit those to open pull requests against repositories they cannot access.
+  The publish job prints a URL — open it to finish the release.
+
+REMINDER

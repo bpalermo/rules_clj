@@ -1,10 +1,11 @@
 # rules_clj — Bazel rules for Clojure.
 #
-# Version 0.0.0 until the first release: nothing is published yet, and a version
-# number that looks releasable invites someone to depend on it.
+# 0.1.0, not 1.0.0. Everything in docs/design.md is implemented and tested, but nothing
+# has been used in anger by anyone but its author, and the API should be allowed to move
+# once real use finds the parts that are wrong.
 module(
     name = "rules_clj",
-    version = "0.0.0",
+    version = "0.1.0",
 )
 
 bazel_dep(name = "bazel_skylib", version = "1.9.0")
