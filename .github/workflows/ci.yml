@@ -81,3 +81,30 @@ jobs:
             --strip-prefix=src --package-prefix=src --mode=check
 
       # No JDK setup step: .bazelrc selects a hermetic remotejdk_21 for target and tool.
+
+  # The single check branch protection requires, and the only reason this job exists.
+  #
+  # A required status check is matched by CHECK RUN name, which for a matrix is the
+  # generated one — "bazel 9.2.0 (ubuntu-latest)" and its three siblings — not the
+  # workflow's name. Requiring those directly works until the matrix changes: bump
+  # 9.2.0 to 9.3.0 and the required check can never report again, so every pull request
+  # is blocked by something that will never turn green. Requiring one aggregate instead
+  # leaves the matrix free to change.
+  #
+  # if: always() so it runs even when a leg fails — a skipped job reports nothing, and a
+  # required check that never reports blocks the pull request instead of failing it.
+  ci:
+    name: ci
+    needs: [bazel, tools-deps-examples]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: every job must have succeeded
+        run: |
+          echo "bazel:                ${{ needs.bazel.result }}"
+          echo "tools-deps-examples:  ${{ needs.tools-deps-examples.result }}"
+          if [ "${{ needs.bazel.result }}" != "success" ] || \
+             [ "${{ needs.tools-deps-examples.result }}" != "success" ]; then
+            echo "::error::CI did not pass" >&2
+            exit 1
+          fi
