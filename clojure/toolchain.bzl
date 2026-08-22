@@ -46,7 +46,14 @@ clj_toolchain = rule(
 
 def _clj_runtime_alias_impl(ctx):
     toolchain = ctx.toolchains["//clojure:toolchain_type"].clojure
-    return [toolchain.runtime]
+    runtime = toolchain.runtime
+
+    # DefaultInfo as well as JavaInfo, so the same target can be a `data` dependency —
+    # a test that needs the jars as files rather than as a classpath entry.
+    return [
+        runtime,
+        DefaultInfo(files = runtime.transitive_runtime_jars),
+    ]
 
 clj_runtime_alias = rule(
     implementation = _clj_runtime_alias_impl,

@@ -1,0 +1,10 @@
+package(default_visibility = ["//tests/conformance:__subpackages__"])
+
+# Referenced as a resource rather than a source: a reader tag file has to land at the
+# root of the classpath, and it is data for the reader, not a namespace.
+exports_files(["data_readers.clj"])
+
+alias(
+    name = "data_readers",
+    actual = "data_readers.clj",
+)

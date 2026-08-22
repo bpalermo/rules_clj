@@ -1,0 +1,25 @@
+load("//clojure:defs.bzl", "clj_library", "clj_test")
+
+clj_library(
+    name = "aot_test_lib",
+    testonly = True,
+    srcs = ["aot_test.clj"],
+    namespaces = ["conformance.aot-test"],
+    strip_prefix = "tests/conformance/test",
+    deps = [
+        "//tests/conformance/src/conformance:chain_a",
+        "//tests/conformance/src/conformance:interpreted",
+        "//tests/conformance/src/conformance:macro_user",
+        "//tests/conformance/src/conformance:protocol_user",
+        "//tests/conformance/src/conformance:protocols",
+        "//tests/conformance/src/conformance:reader_user",
+        "//tests/conformance/src/conformance:type_user",
+        "//tests/conformance/src/conformance:types",
+    ],
+)
+
+clj_test(
+    name = "aot_test",
+    ns = "conformance.aot-test",
+    deps = [":aot_test_lib"],
+)

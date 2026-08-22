@@ -69,7 +69,7 @@ Two things fall out of that, both of which are code we then do not write:
   compile anything, which means a second, cruder build path existing only to build the first
   one. A Java shim is compiled by `java_library` like any other Java.
 
-## Startup, and why there is no worker
+## Startup, and what the measurement said
 
 Per-action JVM startup is the reason Clojure rulesets reach for persistent workers: loading
 `clojure.core` costs on the order of a second, and paying it per target dominates a build.
@@ -80,15 +80,37 @@ which classpaths are interchangeable, when a loader must be discarded because it
 protocol, and what state the runtime leaked between jobs.
 
 The alternative is to make startup cheap instead of rare. `clojure.core` ships AOT-compiled, so
-its classes can go into a **class data sharing archive** built once by the toolchain and mapped
-into every compiler JVM with `-XX:SharedArchiveFile`. Startup drops to a fraction, the process
-stays disposable, and every hazard above disappears with it — no cache, no cross-job state, no
-JarHell.
+its classes can go into a **class data sharing archive** mapped into every compiler JVM with
+`-XX:SharedArchiveFile`. Startup drops, the process stays disposable, and every hazard above
+disappears with it.
 
-This is a bet, and it is falsifiable: phase 2 benchmarks it against an existing worker-based
-ruleset on a fixture of libraries that are slow to AOT. If the numbers do not hold, a worker is
-built then, with measurements in hand rather than inherited assumptions. The order matters —
-correct and simple first, fast second, and never fast in a way nobody can explain.
+That was the bet, it was stated as falsifiable, and phase 2 falsified it. The measurement, on an
+M-series laptop with JDK 21:
+
+| | |
+|---|---|
+| One compile action, no archive | 0.34s |
+| One compile action, archive mapped | 0.245s (28% faster) |
+| 40-target rebuild after `bazel clean`, archive off | 2s |
+| 40-target rebuild after `bazel clean`, archive on | 15s |
+
+The last two lines are the finding. A CDS archive records the *timestamps* of the jars it was
+dumped with and refuses itself when they move, so an archive restored from a cache was dumped
+against timestamps that no longer hold and is silently ignored — the JVM warns under
+`-Xshare:on` and says nothing under `-Xshare:auto`. Correctness therefore requires the archive to
+be uncacheable, dumped in the build that uses it. But an uncacheable input poisons everything
+downstream: its digest changes on every clean build, so every compile action that consumes it
+changes key and none of them can hit the action cache. Trading the action cache for 0.1s an
+action is a bad trade at any size.
+
+So the archive is off by default, kept only behind `--@rules_clj//clojure:cds` so the finding
+stays reproducible (`tools/benchmark/benchmark.sh`).
+
+What survives is the more important half of the original claim: a compile action costs about a
+third of a second, not the second or more that makes a worker feel obligatory, and Bazel runs
+those actions in parallel. Simple and disposable remains the default. Whether to add a worker is
+now a question about scale rather than about startup, and it is answered with these numbers in
+hand rather than by assumption.
 
 ## Dependencies
 

@@ -1,0 +1,26 @@
+"""The compiler shim.
+
+Deliberately has no `deps`, and must never gain any. This code runs on the same
+classpath as the user's application, so anything it brings can collide with what
+they brought — see docs/design.md. Clojure is reached by reflection, not linkage.
+"""
+
+load("@rules_java//java:defs.bzl", "java_binary", "java_library")
+
+package(default_visibility = ["//visibility:public"])
+
+# A library as well as a binary, so that a test can put these classes on its own
+# classpath and drive the shim as a subprocess.
+java_library(
+    name = "aot_lib",
+    srcs = [
+        "Aot.java",
+        "Jars.java",
+    ],
+)
+
+java_binary(
+    name = "aot",
+    main_class = "dev.palermo.rulesclj.Aot",
+    runtime_deps = [":aot_lib"],
+)

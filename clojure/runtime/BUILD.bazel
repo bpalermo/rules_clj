@@ -5,6 +5,7 @@ Two things: the Clojure runtime the toolchain selected, and the test runner.
 
 load("@rules_java//java:defs.bzl", "java_library")
 load("//clojure:toolchain.bzl", "clj_runtime_alias")
+load("//clojure/private:cds.bzl", "clj_cds_archive")
 
 package(default_visibility = ["//visibility:public"])
 
@@ -19,3 +20,6 @@ java_library(
     resource_strip_prefix = "clojure/runtime",
     resources = ["rules_clj/runner.clj"],
 )
+
+# Built once per build, read by every compile action. See clojure/private/cds.bzl.
+clj_cds_archive(name = "cds")

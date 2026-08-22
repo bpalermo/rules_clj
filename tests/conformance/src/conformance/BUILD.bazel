@@ -1,0 +1,105 @@
+"""Conformance fixtures.
+
+One target per namespace, deliberately: each `clj_library` is a separate compilation,
+so the boundaries these tests care about — a protocol's interface, a deftype's class,
+a macro's availability — are real rather than simulated by a single big compile.
+"""
+
+load("//clojure:defs.bzl", "clj_library")
+
+package(default_visibility = ["//tests/conformance:__subpackages__"])
+
+clj_library(
+    name = "protocols",
+    srcs = ["protocols.clj"],
+    namespaces = ["conformance.protocols"],
+    strip_prefix = "tests/conformance/src",
+)
+
+clj_library(
+    name = "protocol_user",
+    srcs = ["protocol_user.clj"],
+    namespaces = ["conformance.protocol-user"],
+    strip_prefix = "tests/conformance/src",
+    deps = [":protocols"],
+)
+
+clj_library(
+    name = "types",
+    srcs = ["types.clj"],
+    namespaces = ["conformance.types"],
+    strip_prefix = "tests/conformance/src",
+)
+
+clj_library(
+    name = "type_user",
+    srcs = ["type_user.clj"],
+    namespaces = ["conformance.type-user"],
+    strip_prefix = "tests/conformance/src",
+    deps = [":types"],
+)
+
+clj_library(
+    name = "macros",
+    srcs = ["macros.clj"],
+    namespaces = ["conformance.macros"],
+    strip_prefix = "tests/conformance/src",
+)
+
+clj_library(
+    name = "macro_user",
+    srcs = ["macro_user.clj"],
+    namespaces = ["conformance.macro-user"],
+    strip_prefix = "tests/conformance/src",
+    deps = [":macros"],
+)
+
+clj_library(
+    name = "chain_c",
+    srcs = ["chain_c.clj"],
+    namespaces = ["conformance.chain-c"],
+    strip_prefix = "tests/conformance/src",
+)
+
+clj_library(
+    name = "chain_b",
+    srcs = ["chain_b.clj"],
+    namespaces = ["conformance.chain-b"],
+    strip_prefix = "tests/conformance/src",
+    deps = [":chain_c"],
+)
+
+clj_library(
+    name = "chain_a",
+    srcs = ["chain_a.clj"],
+    namespaces = ["conformance.chain-a"],
+    strip_prefix = "tests/conformance/src",
+    deps = [":chain_b"],
+)
+
+clj_library(
+    name = "readers",
+    srcs = ["readers.clj"],
+    namespaces = ["conformance.readers"],
+    strip_prefix = "tests/conformance/src",
+)
+
+# data_readers.clj must sit at the root of the classpath, which is what makes it a
+# resource of this target rather than a source of it.
+clj_library(
+    name = "reader_user",
+    srcs = ["reader_user.clj"],
+    namespaces = ["conformance.reader-user"],
+    resources = ["//tests/conformance/src:data_readers"],
+    strip_prefix = "tests/conformance/src",
+    deps = [":readers"],
+)
+
+# The one target that is not compiled, so that the mixed case is covered.
+clj_library(
+    name = "interpreted",
+    srcs = ["interpreted.clj"],
+    aot = False,
+    namespaces = ["conformance.interpreted"],
+    strip_prefix = "tests/conformance/src",
+)

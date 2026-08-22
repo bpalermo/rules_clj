@@ -2,10 +2,10 @@
 
 Bazel rules for Clojure.
 
-> **Status: phase 1 — packaging and running.** `clj_library`, `clj_binary`, `clj_test` and
-> `clj_repl` work; sources are packaged, not yet compiled, so `aot` and the compiler shim arrive
-> in phase 2. Nothing is published to the Bazel Central Registry, and the version is deliberately
-> `0.0.0` so that nothing can depend on it by accident.
+> **Status: phase 2 — compiling.** `clj_library` compiles ahead of time by default, one namespace
+> per target, with a conformance suite covering protocols, `deftype`, macros, `data_readers` and
+> mixed compiled/interpreted code. Nothing is published to the Bazel Central Registry, and the
+> version is deliberately `0.0.0` so that nothing can depend on it by accident.
 
 ## Why another one
 
@@ -23,11 +23,11 @@ of code rather than adding one:
 |---|---|
 | The compiler is a **Java shim** with no third-party dependencies | It shares a classpath with your code, so it must bring nothing to conflict with. Also means the ruleset never has to compile itself to build itself. |
 | Analysis runs in **its own process** | Which is why nothing needs vendoring: tools.namespace and tools.deps are ordinary dependencies over there. |
-| **No persistent worker** — a class data sharing archive instead | Startup made cheap rather than rare. No classloader cache, so none of the failure modes one brings. |
+| **No persistent worker** | A compile action costs ~0.34s and Bazel parallelises them. The class data sharing archive that was meant to shave that turned out to cost more than it saved — [`docs/design.md`](docs/design.md) has the numbers and why. |
 | `deps.edn` resolved into a **checked-in lockfile** | Builds are hermetic and work offline; no Clojure CLI download, no `~/.m2`. |
 
-The reasoning behind each is in [`docs/design.md`](docs/design.md), including how the no-worker
-bet gets tested rather than assumed.
+The reasoning behind each is in [`docs/design.md`](docs/design.md) — including the one that was
+stated as a falsifiable bet and then falsified by its own benchmark.
 
 Scope includes **GraalVM native binaries** (`clj_native_binary`). A Clojure CLI or protoc plugin
 pays JVM startup on every invocation, so producing a native image is part of shipping Clojure

@@ -1,0 +1,17 @@
+load("//clojure:defs.bzl", "clj_library", "clj_test")
+
+clj_library(
+    name = "guard_test_lib",
+    testonly = True,
+    srcs = ["guard_test.clj"],
+    namespaces = ["shim.guard-test"],
+    strip_prefix = "tests/shim",
+    # The shim's classes go on this test's classpath so the subprocess can inherit them.
+    deps = ["//src/main/java/dev/palermo/rulesclj:aot_lib"],
+)
+
+clj_test(
+    name = "guard_test",
+    ns = "shim.guard-test",
+    deps = [":guard_test_lib"],
+)

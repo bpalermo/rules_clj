@@ -9,16 +9,29 @@ without changing what the rule is.
 
 load("@rules_java//java/common:java_common.bzl", "java_common")
 load("@rules_java//java/common:java_info.bzl", "JavaInfo")
+load(":compile.bzl", "COMPILE_ATTRS", "compile_namespaces")
 load(":jar.bzl", "ZIPPER_ATTR", "build_jar")
 load(":providers.bzl", "ClojureInfo")
 
 def _clj_library_impl(ctx):
     output = ctx.actions.declare_file(ctx.label.name + ".jar")
-    files = ctx.files.srcs + ctx.files.resources
-    build_jar(ctx, output, files, ctx.attr.strip_prefix)
-
     deps = [d[JavaInfo] for d in ctx.attr.deps]
     runtime_deps = [d[JavaInfo] for d in ctx.attr.runtime_deps]
+
+    aot = ctx.attr.aot and ctx.attr.namespaces
+    if aot:
+        compile_namespaces(
+            ctx = ctx,
+            output = output,
+            namespaces = ctx.attr.namespaces,
+            srcs = ctx.files.srcs,
+            resources = ctx.files.resources,
+            strip_prefix = ctx.attr.strip_prefix,
+            deps = deps,
+            clojure_runtime = ctx.toolchains["//clojure:toolchain_type"].clojure.runtime,
+        )
+    else:
+        build_jar(ctx, output, ctx.files.srcs + ctx.files.resources, ctx.attr.strip_prefix)
 
     java_info = JavaInfo(
         output_jar = output,
@@ -47,7 +60,7 @@ def _clj_library_impl(ctx):
                 ],
             ),
             srcs = depset(ctx.files.srcs),
-            aot = False,
+            aot = aot,
         ),
     ]
 
@@ -83,12 +96,26 @@ file outside the prefix is an error rather than a silently unloadable jar.""",
             allow_files = True,
         ),
         "namespaces": attr.string_list(
-            doc = """Namespaces this target provides.
+            doc = """Namespaces this target provides, and — unless `aot` is off — compiles.
 
-Informational in phase 1 and recorded in ClojureInfo; phase 2 makes it the set to
-compile. Declared rather than inferred, because inferring it means parsing source
-during analysis, which Bazel does not allow.""",
+Declared rather than inferred: inferring it means parsing source during analysis,
+which Bazel does not allow.""",
         ),
-    } | ZIPPER_ATTR,
+        "aot": attr.bool(
+            doc = """Compile the declared namespaces ahead of time. On by default.
+
+Compiling is the point of the rule, so it is the default, and it is stricter than
+packaging: everything a namespace loads must be reachable through `deps`, because
+compilation has to load it. A target with no `namespaces` has nothing to compile and
+packages its sources whatever this says.
+
+Turning it off produces a jar of sources that Clojure loads at runtime. That is a
+legitimate choice for a namespace whose compilation has side effects you would rather
+not have at build time — but note that a GraalVM native image cannot use it, since the
+image has no compiler to load source with.""",
+            default = True,
+        ),
+    } | ZIPPER_ATTR | COMPILE_ATTRS,
     provides = [JavaInfo, ClojureInfo],
+    toolchains = ["//clojure:toolchain_type"],
 )
