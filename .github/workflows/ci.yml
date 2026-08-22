@@ -99,10 +99,17 @@ jobs:
     if: always()
     runs-on: ubuntu-latest
     steps:
-      - name: every job must have succeeded
+      # Reads the results rather than naming the jobs, so adding a job to `needs` above
+      # is enough to have it gate merges. Spelling out one job by name was the first
+      # version and it was quietly wrong: the step claimed to check every job while
+      # checking one, and would have gone on claiming it after a second job appeared.
+      - name: every job this depends on must have succeeded
         run: |
-          echo "bazel: ${{ needs.bazel.result }}"
-          if [ "${{ needs.bazel.result }}" != "success" ]; then
-            echo "::error::CI did not pass" >&2
-            exit 1
-          fi
+          results="${{ join(needs.*.result, ' ') }}"
+          echo "results: ${results}"
+          for result in ${results}; do
+            if [ "${result}" != "success" ]; then
+              echo "::error::a required job reported '${result}'" >&2
+              exit 1
+            fi
+          done
