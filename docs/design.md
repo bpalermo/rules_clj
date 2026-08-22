@@ -182,17 +182,40 @@ inheriting from whatever runner image built it.
 
 ### Where GraalVM comes from
 
-Not from `rules_graalvm`. Its newest BCR release is from January 2024 and fails to load on
-Bazel 9 (`name 'JavaInfo' is not defined`), and a BCR module may only depend on modules that are
-themselves in the BCR — so depending on it would make this ruleset unpublishable, and depending
-on a `git_override` of it would make it unpublishable *and* only work from a root module.
+[`sgammon/rules_graalvm`](https://github.com/sgammon/rules_graalvm) is the obvious answer and is
+a healthy project — actively maintained, and its v0.12.0 (July 2026) declares
+`bazel_compatibility = [">=7.0.0"]` and works on Bazel 9. This is not a case of routing around
+something abandoned.
 
-`rules_clj` therefore provisions the SDK itself: a repository rule that downloads a pinned
-GraalVM build per platform by SHA, and a `//clojure:native_toolchain_type` that carries it. Two
-details are not obvious and both were learned the hard way — the whole SDK tree has to be an
-action input, because the `native-image` launcher is a symlink into `lib/svm/bin` and resolves
-its `JAVA_HOME` relative to its own location; and registering GraalVM must not substitute it as
-the build's Java toolchain, which is a different thing entirely from having it on disk.
+It is a case of routing around a **distribution** gap, and the two halves of the problem have
+different answers.
+
+**Fetching the SDK — ours, for now.** The BCR's newest `rules_graalvm` is 0.11.1 from January
+2024, which does not load on Bazel 9 (`name 'JavaInfo' is not defined`). A 0.12.0 entry was
+opened as bazelbuild/bazel-central-registry#9753 in July 2026 and closed without merging. Since
+a BCR module may depend only on modules that are themselves in the BCR, depending on
+`rules_graalvm` today would make `rules_clj` unpublishable; a `git_override` of it would make it
+unpublishable *and* usable only from a root module, which is precisely the trap this ruleset
+exists partly to avoid.
+
+So `rules_clj` provisions the SDK itself: a repository rule that downloads a pinned GraalVM
+build per platform by SHA, and a `//clojure:native_toolchain_type` that carries it. Two details
+are not obvious — the whole SDK tree has to be an action input, because the `native-image`
+launcher is a symlink into `lib/svm/bin` and resolves its `JAVA_HOME` relative to its own
+location; and registering GraalVM must not substitute it as the build's Java toolchain, which is
+a different thing entirely from having it on disk.
+
+**The exit condition is explicit**: if `rules_graalvm` ≥ 0.12.0 lands in the BCR, delete our
+repository rule and depend on it. Nothing else in the design assumes ownership of the download,
+and helping that entry get published is a cheaper contribution to the ecosystem than maintaining
+a second GraalVM fetcher indefinitely.
+
+**Running `native-image` — ours regardless.** This half does not change if the module becomes
+available. As of v0.12.0 its rule still loads `apple_support` and calls `apple_support.run`
+(`internal/native_image/rules.bzl`), which puts `SDKROOT` into the action environment; Bazel's
+`XcodeLocalEnvProvider` then injects it again and the build dies with *Multiple entries with
+same key: SDKROOT*. Until that changes, a rule that works on macOS has to invoke the launcher
+directly, and that is what `clj_native_binary` does.
 
 ## Non-goals
 
