@@ -2,10 +2,14 @@
 
 Bazel rules for Clojure.
 
-> **Status: phase 2 complete, plus the worker.** `clj_library` compiles ahead of time by default,
-> one namespace per target, through a persistent worker, with a conformance suite covering
-> protocols, `deftype`, macros, `data_readers` and mixed compiled/interpreted code. Nothing is published to the Bazel Central Registry, and the
-> version is deliberately `0.0.0` so that nothing can depend on it by accident.
+> **Status: 0.1.0, releasing.** Compilation, tests, binaries, REPLs, `deps.edn` dependencies,
+> BUILD generation, ClojureScript and GraalVM native images all work, on Bazel 8 and 9 across
+> Linux and macOS. Release candidates before `0.1.0` are rehearsals of the release pipeline and
+> are not published; nothing is in the Bazel Central Registry until `0.1.0` lands there.
+>
+> It is a first release. Everything documented is implemented and tested, and nothing has been
+> used in anger by anyone but its author, so expect the API to move where real use finds it
+> wrong.
 
 ## Why another one
 
