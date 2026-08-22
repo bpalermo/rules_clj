@@ -108,10 +108,20 @@ jobs:
     with:
       tag_name: ${{ inputs.tag_name || github.ref_name }}
       registry_fork: bpalermo/bazel-central-registry
-      # A prerelease pushes the entry to the fork but opens no upstream pull request. BCR
-      # is add-only, so a release candidate merged there is permanent, and rehearsing
-      # should not spend reviewers' attention.
-      open_pull_request: ${{ !contains(inputs.tag_name || github.ref_name, '-') }}
+      # Never opened automatically, for a reason that is about the credential rather
+      # than about preference: PUBLISH_TOKEN is a fine-grained PAT scoped to the registry
+      # fork alone, and GitHub does not let a fine-grained token open a pull request
+      # against a public repository it has no access to — which
+      # bazelbuild/bazel-central-registry is (github/roadmap#600).
+      #
+      # So the workflow pushes the entry branch to the fork and prints a URL; opening the
+      # pull request is one manual click per release. The trade is deliberate: the
+      # alternative is a classic PAT, which cannot be scoped to a single repository at
+      # all and would therefore be able to write to every public repo of ours.
+      #
+      # A prerelease would not open one anyway — BCR is add-only, and a merged release
+      # candidate is permanent — so the rehearsal path is unaffected by this.
+      open_pull_request: false
       environment: bcr-publish
       download_default_release_artifacts: true
       author_name: Bruno Palermo
