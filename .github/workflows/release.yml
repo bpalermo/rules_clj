@@ -22,6 +22,37 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      # The environment holding PUBLISH_TOKEN only admits v* tags, which is necessary
+      # and not sufficient: a tag can be created on any commit, including one on a
+      # branch that was never merged and never reviewed. This is what makes "released"
+      # mean "merged to main".
+      #
+      # Compared through the API rather than with git, so the checkout above can stay
+      # shallow. `behind` means the tagged commit is an ancestor of main; `identical`
+      # means it is main. Anything else — ahead, diverged — is a commit main has never
+      # seen, and the release stops before any job that can reach the token.
+      - name: the tag must point at a commit on main
+        env:
+          TAG: ${{ inputs.tag_name || github.ref_name }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          sha=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$TAG" --jq '.object.sha')
+          # An annotated tag points at a tag object, which points at the commit.
+          type=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$TAG" --jq '.object.type')
+          if [ "$type" = "tag" ]; then
+            sha=$(gh api "repos/$GITHUB_REPOSITORY/git/tags/$sha" --jq '.object.sha')
+          fi
+          status=$(gh api "repos/$GITHUB_REPOSITORY/compare/main...$sha" --jq '.status')
+          echo "$TAG -> $sha is '$status' relative to main"
+          case "$status" in
+            identical|behind) ;;
+            *)
+              echo "::error::$TAG points at $sha, which is not on main ($status)." \
+                   "Releases are cut from merged code; tag a commit on main instead." >&2
+              exit 1
+              ;;
+          esac
+
       - name: MODULE.bazel must agree with the tag
         env:
           TAG: ${{ inputs.tag_name || github.ref_name }}
