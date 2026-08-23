@@ -35,21 +35,33 @@
   "The Bazel target for a library, following the convention rules_jvm_external set.
 
   Not an arbitrary choice: people move between JVM rulesets, and a familiar label saves
-  them translating one mental model into another."
+  them translating one mental model into another. A classifier's `$` separator
+  (io.netty/netty-transport-native-epoll$linux-x86_64) munges to `_` like the
+  rest — `$` is not legal in a Bazel target name."
   [lib]
   (-> (str (namespace lib) "_" (name lib))
-      (str/replace #"[.\-]" "_")))
+      (str/replace #"[.\-$]" "_")))
 
 (defn- artifact-path
   "The repository-relative path of a jar, derived from its coordinates.
 
   Taken from the coordinates rather than from wherever tools.deps cached it: the local
   path is one machine's accident, while the coordinates are what every Maven mirror
-  agrees on."
+  agrees on.
+
+  A classified lib (tools.deps spells it artifact$classifier) lives at the
+  UNclassified artifact's directory with the classifier as a filename suffix:
+  netty-transport-native-epoll$linux-x86_64 4.2.16.Final is
+  io/netty/netty-transport-native-epoll/4.2.16.Final/
+  netty-transport-native-epoll-4.2.16.Final-linux-x86_64.jar. Deriving the
+  path from the lib name verbatim produced a URL no Maven repository serves."
   [lib version]
-  (str (str/replace (namespace lib) "." "/") "/"
-       (name lib) "/" version "/"
-       (name lib) "-" version ".jar"))
+  (let [[artifact classifier] (str/split (name lib) #"\$" 2)]
+    (str (str/replace (namespace lib) "." "/") "/"
+         artifact "/" version "/"
+         artifact "-" version
+         (when classifier (str "-" classifier))
+         ".jar")))
 
 (defn- repository-urls
   [deps-edn]
