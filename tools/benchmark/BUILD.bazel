@@ -1,1 +1,15 @@
+load("@rules_shell//shell:sh_library.bzl", "sh_library")
+load("//bazel/lint:linters.bzl", "shellcheck_test")
+
 exports_files(["benchmark.sh"])
+
+sh_library(
+    name = "benchmark",
+    srcs = ["benchmark.sh"],
+)
+
+shellcheck_test(
+    name = "benchmark_lint",
+    srcs = [":benchmark"],
+    tags = ["lint"],
+)

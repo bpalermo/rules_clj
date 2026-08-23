@@ -1,0 +1,4 @@
+# Follow sourced files
+external-sources=true
+# Resolve sources relative to the script, not the invocation directory
+source-path=SCRIPTDIR

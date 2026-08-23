@@ -7,4 +7,10 @@ exports_files([
     "LICENSE",
     "MODULE.bazel",
     "NOTICE",
+    # For the shellcheck aspect in //bazel/lint:linters.bzl.
+    ".shellcheckrc",
+    # Owned by the root package so //bazel/tools can lint it without planting a
+    # BUILD file inside .github/. The script itself cannot move: release_ruleset
+    # hard-codes this path (see //bazel/tools).
+    ".github/workflows/release_prep.sh",
 ])
