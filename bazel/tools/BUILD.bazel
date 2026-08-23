@@ -1,0 +1,15 @@
+load("@rules_shell//shell:sh_library.bzl", "sh_library")
+load("//bazel/lint:linters.bzl", "shellcheck_test")
+
+# Invoked by Bazel itself via --workspace_status_command, not as a target, but a
+# failure here breaks every build — so it is worth linting.
+sh_library(
+    name = "workspace_status",
+    srcs = ["workspace_status.sh"],
+)
+
+shellcheck_test(
+    name = "workspace_status_lint",
+    srcs = [":workspace_status"],
+    tags = ["lint"],
+)

@@ -7,4 +7,6 @@ exports_files([
     "LICENSE",
     "MODULE.bazel",
     "NOTICE",
+    # For the shellcheck aspect in //bazel/lint:linters.bzl.
+    ".shellcheckrc",
 ])
