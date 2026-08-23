@@ -13,3 +13,21 @@ shellcheck_test(
     srcs = [":workspace_status"],
     tags = ["lint"],
 )
+
+# The release-prep script is the one piece of release tooling that does NOT live
+# in this directory, and cannot: bazel-contrib's release_ruleset workflow
+# hard-codes `.github/workflows/release_prep.sh` as the prep command — its
+# `release_prep_command` input was deliberately removed upstream so that a
+# workflow_dispatch caller cannot point an attested release at an arbitrary
+# script. Its lint target lives here instead, with the rest of the script lint
+# wiring, so there is one place to look.
+sh_library(
+    name = "release_prep",
+    srcs = ["//:.github/workflows/release_prep.sh"],
+)
+
+shellcheck_test(
+    name = "release_prep_lint",
+    srcs = [":release_prep"],
+    tags = ["lint"],
+)
