@@ -4,14 +4,14 @@
 # has been used in anger by anyone but its author, and the API should be allowed to move
 # once real use finds the parts that are wrong.
 #
-# Currently -rc1, because the release pipeline has never run. The version declared here
-# must equal the tag: both the release workflow and release_prep.sh cross-check them, so
-# that an archive can never claim a version other than the one it was cut from. A
-# prerelease tag therefore has to be declared, not implied — and this goes back to plain
-# 0.1.0 before the real release.
+# The version declared here must equal the tag: both the release workflow and
+# release_prep.sh cross-check them, so that an archive can never claim a
+# version other than the one it was cut from. The v0.1.0-rc1 rehearsal ran the
+# whole pipeline — tag gates, attested archive, BCR entry — before this became
+# the real thing.
 module(
     name = "rules_clj",
-    version = "0.1.0-rc1",
+    version = "0.1.0",
 )
 
 bazel_dep(name = "bazel_skylib", version = "1.9.2")
