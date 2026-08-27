@@ -15,6 +15,13 @@ tasks:
     build_flags:
       # The compiler runs on the tool JVM and needs Java 21 (java.util.HexFormat). The
       # anonymous module BCR generates has no .bazelrc, so state it here.
+      # Target side too: aot_deploy.jar builds in the target configuration,
+      # whose javac otherwise defaults to -source 11 and rejects the worker's
+      # Java 21. Found by 0.1.0's presubmit on macOS — the Linux legs hid it
+      # behind remote-cache hits, and this repo's own CI hides it behind its
+      # .bazelrc.
+      - "--java_language_version=21"
+      - "--java_runtime_version=remotejdk_21"
       - "--tool_java_language_version=21"
       - "--tool_java_runtime_version=remotejdk_21"
     build_targets:
