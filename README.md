@@ -2,10 +2,11 @@
 
 Bazel rules for Clojure.
 
-> **Status: 0.1.0.** Compilation, tests, binaries, REPLs, `deps.edn` dependencies,
-> BUILD generation, ClojureScript and GraalVM native images all work, on Bazel 8 and 9 across
-> Linux and macOS. The `0.1.0` Bazel Central Registry entry is in review; until it merges,
-> consume via `git_override` — protoc-gen-clojure, clj-protobuf and clj-grpc already do.
+> **Status: 0.1.0, in the [Bazel Central Registry](https://registry.bazel.build/modules/rules_clj).**
+> Compilation, tests, binaries, REPLs, `deps.edn` dependencies, BUILD generation,
+> ClojureScript and GraalVM native images all work, on Bazel 8 and 9 across Linux and
+> macOS. `bazel_dep(name = "rules_clj", version = "0.1.0")` is all a consumer needs —
+> protoc-gen-clojure, clj-protobuf and clj-grpc build with exactly that.
 >
 > It is a first release. Everything documented is implemented and tested, and nothing has been
 > used in anger by anyone but its author, so expect the API to move where real use finds it
