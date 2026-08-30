@@ -197,8 +197,8 @@
 
 (deftest coordinates-that-cannot-make-a-url-are-caught-while-planning
   (testing "the URLs are built from a coordinates file, so a legal repository does not
-            make them legal — and the alternative to catching it here is URI.create
-            throwing at the moment of the first PUT, half way through a release"
+            make them legal — and the alternative to catching it while planning is a
+            throw at the moment of the first PUT, half way through a release"
     (let [coordinates (io/file (temp-dir "publisher-coords") "coordinates.txt")
           _ (spit coordinates "com.example:lib:1.0 SNAPSHOT\n")
           {:keys [exit err]} (publish "--repository=https://clojars.org/repo"
@@ -207,7 +207,48 @@
                                       (str "--jar=" (runfile "GENERATED_JAR"))
                                       "--dry-run")]
       (is (= 1 exit))
-      (is (str/includes? err "do not make a usable URL") err))))
+      (is (str/includes? err "not a usable coordinate") err))))
+
+(defn- publish-coordinates
+  "Publishes into `repository` with `text` as the whole coordinates file."
+  [repository text & extra]
+  (let [coordinates (io/file (temp-dir "publisher-coords") "coordinates.txt")]
+    (spit coordinates text)
+    (apply publish
+           (str "--repository=" repository)
+           (str "--coordinates=" coordinates)
+           (str "--pom=" (runfile "GENERATED_POM"))
+           (str "--jar=" (runfile "GENERATED_JAR"))
+           extra)))
+
+(def ^:private coordinates-that-escape
+  "Coordinates whose components name somewhere other than the repository, and the
+  component each one is wrong in."
+  [["com.example:lib:../../../../victim" "version"]
+   ["..:lib:1.0" "group id"]
+   ["com.example:../../victim:1.0" "artifact id"]
+   ["com.example:lib:/tmp/absolute" "version"]
+   ["com.example:lib:a/b" "version"]])
+
+(deftest coordinates-cannot-escape-the-repository
+  (testing "every component becomes a directory name under a file: repository and a path
+            segment in an upload URL, so one holding a separator or a .. would have
+            Path/resolve walk out of the repository and Files/write land the artifact
+            somewhere else on the machine"
+    (doseq [[text what] coordinates-that-escape
+            dry-run [false true]]
+      (testing (str text (when dry-run " under --dry-run"))
+        (let [parent (temp-dir "publisher-escape")
+              root (doto (io/file parent "repository") .mkdirs)
+              _ (doto (io/file parent "victim") .mkdirs)
+              args (cond-> [(str "file://" root) (str text "\n")] dry-run (conj "--dry-run"))
+              {:keys [exit err]} (apply publish-coordinates args)]
+          (is (= 1 exit) "the run must refuse these coordinates")
+          (is (str/includes? err (str "the " what " in")) err)
+          (is (str/includes? err "not a usable coordinate") err)
+          (testing "and nothing was written anywhere under the repository or beside it"
+            (is (empty? (filter #(.isFile ^java.io.File %) (file-seq parent)))
+                "a file was written despite the refusal")))))))
 
 (deftest a-missing-artifact-is-reported-before-anything-is-sent
   (let [{:keys [exit err]} (publish "--repository=https://clojars.org/repo"

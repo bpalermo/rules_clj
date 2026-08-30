@@ -16,8 +16,9 @@ runfiles tree rather than in the directory you typed the command in:
       --coordinates-out=/tmp/coordinates.txt
 
 Optional metadata — --description, --url, --scm-url, --license-name, --license-url,
---source-directory — is added the same way. Nothing in a build uses this binary. The library's jar is what the rule puts on the action's
-classpath, exactly the way //clojure/private/compile.bzl runs the compiler shim.
+--source-directory — is added the same way. Nothing in a build uses this binary: the
+library's jar is what the rule puts on the action's classpath, exactly the way
+//clojure/private/compile.bzl runs the compiler shim.
 
 No third-party dependencies: reading a deps.edn needs `clojure.edn`, and writing XML with
 no timestamps and a fixed element order is easier without a library than with one.

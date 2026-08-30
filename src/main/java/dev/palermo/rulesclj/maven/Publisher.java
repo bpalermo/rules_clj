@@ -21,6 +21,7 @@ import java.util.Base64;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Pattern;
 
 /**
  * Uploads a jar and its pom to a Maven repository.
@@ -150,9 +151,12 @@ public final class Publisher {
         addArtifact(uploads, base, stem + ".pom", parsed.pom);
 
         // The URLs were assembled from coordinates read out of a file, so the base being a
-        // legal URI does not make them one — a version with a space in it would be caught
-        // here rather than by URI.create at the moment of the first PUT. A `file:` upload
-        // never goes near URI, and a filesystem path is allowed to contain anything.
+        // legal URI does not by itself make them ones. Coordinates.read has already refused
+        // every character that could make this fail, so like the containment check in
+        // upload() this should never fire; it stays because the assembled URL is what the
+        // PUT actually uses, and the last thing to look at it before a release should be the
+        // thing that knows it is a URL. A `file:` upload never goes near URI, and a
+        // filesystem path is allowed to contain anything.
         if (!isFileRepository(parsed.repository)) {
             for (Upload upload : uploads) {
                 try {
@@ -232,9 +236,21 @@ public final class Publisher {
     private static int upload(Args parsed, List<Upload> uploads, PrintStream out, PrintStream err)
             throws Exception {
         if (isFileRepository(parsed.repository)) {
-            Path root = filePath(parsed.repository);
+            Path root = filePath(parsed.repository).toAbsolutePath().normalize();
             for (Upload upload : uploads) {
-                Path destination = root.resolve(relativeTo(parsed.repository, upload.url));
+                Path destination =
+                        root.resolve(relativeTo(parsed.repository, upload.url)).normalize();
+                // Coordinates.read has already refused every component that could get out of
+                // here, so this cannot fire today. It stays because it is the check that makes
+                // that true independently of the parser: this is the line that writes to the
+                // filesystem, and it should be the line that knows where it is allowed to write.
+                if (!destination.startsWith(root)) {
+                    throw new PublishException(
+                            "refusing to write outside the repository: "
+                                    + destination
+                                    + " is not under "
+                                    + root);
+                }
                 Files.createDirectories(destination.getParent());
                 Files.write(destination, upload.content);
                 out.println("wrote " + destination);
@@ -457,6 +473,19 @@ public final class Publisher {
             this.version = version;
         }
 
+        /**
+         * The characters a coordinate component may hold.
+         *
+         * <p>Narrower than "not empty", because these three strings are not only printed: the
+         * group's dots become slashes and all three become directory names under a {@code file:}
+         * repository and path segments in an upload URL. A component holding a separator or a
+         * {@code ..} would therefore name a place other than the one being published to, and
+         * {@code Path.resolve} would follow it out of the repository with {@code Files.write}
+         * behind it. The set below is what Maven coordinates actually use, so refusing everything
+         * else costs a real release nothing and removes the question of where a write can land.
+         */
+        private static final Pattern COMPONENT = Pattern.compile("[A-Za-z0-9_+-][A-Za-z0-9._+-]*");
+
         static Coordinates read(Path file) throws IOException, PublishException {
             String text = Files.readString(file, StandardCharsets.UTF_8).strip();
             String[] parts = text.split(":");
@@ -464,7 +493,25 @@ public final class Publisher {
                 throw new PublishException(
                         "expected group:artifact:version in " + file + ", found: " + text);
             }
+            check(file, "group id", parts[0]);
+            check(file, "artifact id", parts[1]);
+            check(file, "version", parts[2]);
             return new Coordinates(parts[0], parts[1], parts[2]);
+        }
+
+        private static void check(Path file, String what, String value) throws PublishException {
+            if (!COMPONENT.matcher(value).matches() || value.contains("..")) {
+                throw new PublishException(
+                        "the "
+                                + what
+                                + " in "
+                                + file
+                                + " is not a usable coordinate: "
+                                + value
+                                + ". A coordinate may hold letters, digits, '.', '_', '+' and '-',"
+                                + " may not begin with a '.' and may not contain '..', because it"
+                                + " becomes a directory name and a URL path segment.");
+            }
         }
     }
 
