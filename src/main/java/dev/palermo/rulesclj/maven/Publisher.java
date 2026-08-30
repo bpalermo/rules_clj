@@ -218,6 +218,29 @@ public final class Publisher {
         if (uri.getHost() == null) {
             throw new PublishException("the repository URL names no host: " + repository);
         }
+        if (scheme.equalsIgnoreCase("http") && !isLoopback(uri.getHost())) {
+            throw new PublishException(
+                    "refusing to publish over plain http to "
+                            + uri.getHost()
+                            + ": the credentials travel in an Authorization header, which http"
+                            + " sends in clear text to anyone on the path, and a deploy token"
+                            + " that leaks is a token someone else can publish with. Use https,"
+                            + " or file: for a local install. http is allowed only to loopback,"
+                            + " for testing against a repository on this machine.");
+        }
+    }
+
+    /**
+     * Whether this host is this machine, and therefore somewhere plain http cannot leak to.
+     *
+     * <p>The carve-out exists because a repository run on the developer's own machine for a test
+     * is the one case where http is not a mistake, and there the request never reaches a network.
+     */
+    private static boolean isLoopback(String host) {
+        return host.equalsIgnoreCase("localhost")
+                || host.equals("::1")
+                || host.equals("[::1]")
+                || host.startsWith("127.");
     }
 
     private static void addArtifact(List<Upload> uploads, String base, String name, Path file)

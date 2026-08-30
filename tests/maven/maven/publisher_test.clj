@@ -175,7 +175,24 @@
    ["file://elsewhere/repo" "cannot name another host"]
    ["clojars.org/repo" "needs a scheme"]
    ["ftp://clojars.org/repo" "must be http, https or file:"]
-   ["https://clojars .org/repo" "not a usable repository URL"]])
+   ["https://clojars .org/repo" "not a usable repository URL"]
+   ["http://repo.example.com/repo" "plain http"]])
+
+(deftest http-to-somewhere-that-is-not-this-machine-is-refused
+  (testing "the credentials travel in an Authorization header, which http sends in clear
+            text — and a deploy token that leaks is a token someone else can publish with"
+    (let [{:keys [exit err]} (apply publish (artifact-args "http://repo.example.com/repo"))]
+      (is (= 1 exit))
+      (is (str/includes? err "clear text") err)))
+
+  (testing "loopback is the one place http cannot leak to, and is where a test repository
+            runs, so it stays allowed"
+    (doseq [repository ["http://localhost:8081/repo"
+                        "http://127.0.0.1:8081/repo"
+                        "http://[::1]:8081/repo"]]
+      (let [{:keys [exit out]} (apply publish "--dry-run" (artifact-args repository))]
+        (is (zero? exit) (str repository " should be allowed"))
+        (is (str/includes? out "10 files would be uploaded") repository)))))
 
 (deftest an-unusable-repository-is-refused
   (doseq [[repository fragment] unusable-repositories]

@@ -307,7 +307,11 @@ Note that this is not the URL artifacts are read from — https://repo.clojars.o
 read-only mirror and answers an upload with a 405. A `file:` URL installs into a local
 repository instead, which is how you test the whole path without publishing:
 
-    bazel run //:lib.publish -- --repository=file:///$HOME/.m2/repository""",
+    bazel run //:lib.publish -- --repository=file:///$HOME/.m2/repository
+
+A remote repository must be `https`: the credentials travel in an Authorization header,
+and http would send them in clear text. Plain http is accepted only to loopback, for a
+repository running on this machine.""",
             default = "https://clojars.org/repo",
         ),
         "_publisher": attr.label(
