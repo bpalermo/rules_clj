@@ -147,14 +147,29 @@
                                      (slurp deps-edn-path :encoding utf-8)))]
     (->> deps
          (map (fn [[lib coord]]
-                (when-not (:mvn/version coord)
-                  (fail (str lib " in " deps-edn-path " has no :mvn/version. A pom can only"
-                             " express Maven coordinates, so a :git/url or :local/root"
-                             " dependency cannot be published — release it to a repository"
-                             " first, or move it into an alias.")))
-                (assoc (lib->artifact lib)
-                       :version (:mvn/version coord)
-                       :exclusions (mapv exclusion (:exclusions coord)))))
+                (let [version (:mvn/version coord)]
+                  (when (nil? version)
+                    (fail (str lib " in " deps-edn-path " has no :mvn/version. A pom can only"
+                               " express Maven coordinates, so a :git/url or :local/root"
+                               " dependency cannot be published — release it to a repository"
+                               " first, or move it into an alias.")))
+                  ;; Present is not the same as usable, and neither failure announces itself:
+                  ;; an empty string is truthy, so it reaches the pom as <version></version>,
+                  ;; which no resolver can satisfy; and an unquoted 1.2 is a NUMBER to the
+                  ;; reader, which reaches the renderer as a child that is not a string and
+                  ;; not a node, and dies there on destructuring rather than here with a
+                  ;; sentence naming the dependency. Deliberately not the coordinate rule
+                  ;; applied to the project's own version: a dependency's version may be a
+                  ;; Maven range such as [1.0,2.0), which is a legal thing to ask a resolver
+                  ;; for and none of our business to refuse.
+                  (when-not (and (string? version) (not (str/blank? version)))
+                    (fail (str lib " in " deps-edn-path " has a :mvn/version that is not a"
+                               " version: " (pr-str version) ". It must be a non-blank string"
+                               " — note that an unquoted 1.2 is read as a number, not as"
+                               " \"1.2\".")))
+                  (assoc (lib->artifact lib)
+                         :version version
+                         :exclusions (mapv exclusion (:exclusions coord))))))
          (sort-by (juxt :group-id :artifact-id #(or (:classifier %) "")))
          vec)))
 

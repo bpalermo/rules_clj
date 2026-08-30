@@ -86,6 +86,19 @@
                                   " {:git/tag \"v1\" :git/sha \"abc1234\"}}}"))]
       (is (str/includes? (str (refusal #(pom-gen/dependencies deps))) "has no :mvn/version")))))
 
+(deftest a-dependency-version-that-is-not-a-version-is-refused
+  (testing "present is not the same as usable, and neither of these announces itself: an
+            empty string is truthy, so it reaches the pom as <version></version>; and an
+            unquoted 1.2 is a number to the reader, which dies in the renderer on
+            destructuring rather than here, with a message naming the dependency"
+    (doseq [[label deps-text] [["an empty version" "{:deps {a/b {:mvn/version \"\"}}}"]
+                               ["a blank version" "{:deps {a/b {:mvn/version \"  \"}}}"]
+                               ["an unquoted number" "{:deps {a/b {:mvn/version 1.2}}}"]
+                               ["a symbol" "{:deps {a/b {:mvn/version v1.2}}}"]]]
+      (let [message (str (refusal #(pom-gen/dependencies (file-holding "deps.edn" deps-text))))]
+        (is (str/includes? message "is not a version") label)
+        (is (str/includes? message "a/b") (str label " should name the dependency"))))))
+
 (deftest exclusions-are-projected-in-every-spelling
   (let [deps (file-holding "deps.edn"
                            (str "{:deps {a/b {:mvn/version \"1\""
