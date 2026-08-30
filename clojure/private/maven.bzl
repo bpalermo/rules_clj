@@ -219,25 +219,59 @@ _LAUNCHER = """#!/usr/bin/env bash
 set -euo pipefail
 
 runfiles="${{RUNFILES_DIR:-}}"
-if [[ -z "${{runfiles}}" ]]; then
+manifest="${{RUNFILES_MANIFEST_FILE:-}}"
+if [[ -z "${{runfiles}}" && -z "${{manifest}}" ]]; then
   if [[ -d "$0.runfiles" ]]; then
     runfiles="$0.runfiles"
   elif [[ "$0" == *.runfiles/* ]]; then
     runfiles="${{0%%.runfiles/*}}.runfiles"
+  elif [[ -f "$0.runfiles_manifest" ]]; then
+    manifest="$0.runfiles_manifest"
   else
     echo "cannot find the runfiles tree; run this with 'bazel run'" >&2
     exit 1
   fi
 fi
-export RUNFILES_DIR="${{runfiles}}"
-root="${{runfiles}}/{workspace}"
+# Whichever was found is passed on: the publisher is a java_binary whose own stub has to
+# find its jars the same way.
+if [[ -n "${{runfiles}}" ]]; then export RUNFILES_DIR="${{runfiles}}"; fi
+if [[ -n "${{manifest}}" ]]; then export RUNFILES_MANIFEST_FILE="${{manifest}}"; fi
+
+# One runfiles path. A tree is a directory lookup; a manifest is a lookup in a file of
+# "key path" lines, which is all there is when Bazel runs without a runfiles tree —
+# --noenable_runfiles, and Windows by default. A tree is preferred when both exist.
+resolve() {{
+  local key="{workspace}/$1"
+  if [[ -n "${{runfiles}}" && -e "${{runfiles}}/${{key}}" ]]; then
+    printf '%s' "${{runfiles}}/${{key}}"
+    return 0
+  fi
+  if [[ -n "${{manifest}}" ]]; then
+    # Anchored on the key plus its separating space, and the value is the rest of the
+    # line: a path in a manifest may contain spaces, so it cannot be a field.
+    local found
+    found="$(awk -v k="${{key}}" \\
+      'index($0, k " ") == 1 {{ print substr($0, length(k) + 2); exit }}' "${{manifest}}")"
+    if [[ -n "${{found}}" ]]; then
+      printf '%s' "${{found}}"
+      return 0
+    fi
+  fi
+  echo "cannot find ${{key}} in the runfiles" >&2
+  return 1
+}}
+
+publisher="$(resolve '{publisher}')"
+coordinates="$(resolve '{coordinates}')"
+pom="$(resolve '{pom}')"
+jar="$(resolve '{jar}')"
 
 # "$@" last, so `bazel run //:lib.publish -- --dry-run` works and a later flag wins.
-exec "${{root}}/{publisher}" \\
+exec "${{publisher}}" \\
   {repository} \\
-  "--coordinates=${{root}}/{coordinates}" \\
-  "--pom=${{root}}/{pom}" \\
-  "--jar=${{root}}/{jar}" \\
+  "--coordinates=${{coordinates}}" \\
+  "--pom=${{pom}}" \\
+  "--jar=${{jar}}" \\
   "$@"
 """
 

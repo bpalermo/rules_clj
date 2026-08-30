@@ -1,18 +1,19 @@
 #!/usr/bin/env bash
 #
-# The generated publish launcher, run four ways.
+# The generated publish launcher, run five ways.
 #
-# The launcher is fifteen lines of Starlark string formatting around a runfiles lookup,
-# and that is exactly the kind of code that cannot be checked by reading it: it is either
-# right or it fails at the moment someone tries to cut a release. So this runs it.
+# The launcher is generated Starlark string formatting around a runfiles lookup, and that
+# is exactly the kind of code that cannot be checked by reading it: it is either right or
+# it fails at the moment someone tries to cut a release. So this runs it.
 #
-# Three of the four cases are the situations it is actually started in —
+# Four of the five cases are the situations it is actually started in —
 #
 #   RUNFILES_DIR set        `bazel run //:lib.publish`, and this test
 #   a sibling .runfiles/    started by path, the way a release script does it
 #   inside a .runfiles/     started by path from within someone else's runfiles tree
+#   a manifest, no tree     --noenable_runfiles, and Windows by default
 #
-# — and the fourth is the case where none of them holds, where the requirement is that
+# — and the fifth is the case where none of them holds, where the requirement is that
 # it says so rather than reaching for a path that does not exist.
 #
 # It also pins ctx.workspace_name against Bazel's own TEST_WORKSPACE. That value is
@@ -87,9 +88,9 @@ fi
 # mismatch names the value instead of producing a confusing missing-file error.
 
 echo "== the launcher's workspace name is Bazel's =="
-if ! grep -Fq "root=\"\${runfiles}/${workspace}\"" "${launcher}"; then
+if ! grep -Fq "local key=\"${workspace}/\$1\"" "${launcher}"; then
   fail "the launcher does not build its paths on TEST_WORKSPACE (${workspace}). It contains:
-$(grep -F 'root=' "${launcher}" || true)"
+$(grep -F 'local key=' "${launcher}" || true)"
 fi
 
 # --- case 1: RUNFILES_DIR, which is what `bazel run` sets ---------------------
@@ -134,7 +135,38 @@ else
 ${output}"
 fi
 
-# --- case 4: no runfiles anywhere ---------------------------------------------
+# --- case 4: a manifest and no tree -------------------------------------------
+#
+# Bazel supports running without a runfiles tree at all — --noenable_runfiles, and Windows
+# by default — where RUNFILES_MANIFEST_FILE names a file of "key path" lines and every
+# directory lookup a launcher might try is absent. A launcher that only knows how to walk
+# a tree reports "cannot find the runfiles tree" in a mode that is perfectly well
+# supported, and the failure arrives at the moment of a release.
+#
+# The manifest is built from the real tree, which is what Bazel's own would contain. The
+# launcher is copied somewhere with no .runfiles anywhere in its path first: run from
+# inside the tree it would resolve through the tree, and the manifest would prove nothing.
+
+echo "== a runfiles manifest, with no tree =="
+manifest="${TEST_TMPDIR:-/tmp}/runfiles_manifest"
+(
+  cd "${srcdir}"
+  find . \( -type f -o -type l \) | while read -r path; do
+    printf '%s %s\n' "${path#./}" "${srcdir}/${path#./}"
+  done
+) >"${manifest}"
+
+manifest_only="$(mktemp -d "${TEST_TMPDIR:-/tmp}/manifest.XXXXXX")"
+cp "${launcher}" "${manifest_only}/lib.publish"
+if output="$(bare RUNFILES_MANIFEST_FILE="${manifest}" "${manifest_only}/lib.publish" \
+  --dry-run 2>&1)"; then
+  expect_dry_run_plan "manifest" "${output}"
+else
+  fail "manifest: the launcher exited $?. Output was:
+${output}"
+fi
+
+# --- case 5: no runfiles anywhere ---------------------------------------------
 
 echo "== no runfiles at all =="
 orphan="$(mktemp -d "${TEST_TMPDIR:-/tmp}/orphan.XXXXXX")"

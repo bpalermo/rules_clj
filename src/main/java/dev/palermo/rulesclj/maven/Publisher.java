@@ -21,6 +21,7 @@ import java.util.Base64;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.UnaryOperator;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -304,10 +305,17 @@ public final class Publisher {
 
         Credentials credentials = Credentials.fromEnvironment();
         if (credentials == null) {
+            String half = Credentials.halfConfigured(System::getenv);
             err.println(
                     "publisher: no credentials. Set CLOJARS_USERNAME and CLOJARS_PASSWORD (or"
                             + " MAVEN_USER and MAVEN_PASSWORD). On Clojars the password must be a"
-                            + " deploy token, not your account password.");
+                            + " deploy token, not your account password."
+                            + (half == null
+                                    ? ""
+                                    : " Note that "
+                                            + half
+                                            + ": a username and a password are taken from the same"
+                                            + " pair, never one from each."));
             return 1;
         }
 
@@ -575,20 +583,64 @@ public final class Publisher {
             this.password = password;
         }
 
+        /**
+         * The first COMPLETE pair, rather than the first set variable of each kind.
+         *
+         * <p>Choosing the username and the password independently mixes them: with
+         * {@code CLOJARS_USERNAME} set and {@code CLOJARS_PASSWORD} forgotten, the fallback
+         * supplies {@code MAVEN_PASSWORD}, and the result is one repository's secret sent to
+         * another repository's server under the first one's username. The failure is silent and
+         * points the wrong way — the server answers 401, so the reader concludes the token is
+         * wrong rather than that it went somewhere it should never have been. A secret is only
+         * ever as safe as the least careful thing that knows it, and a half-configured
+         * environment is not a reason to improvise one.
+         */
         static Credentials fromEnvironment() {
-            String user = firstSet("CLOJARS_USERNAME", "MAVEN_USER");
-            String password = firstSet("CLOJARS_PASSWORD", "MAVEN_PASSWORD");
+            return from(System::getenv);
+        }
+
+        /** Separate from {@link #fromEnvironment} so a test can drive it without a process env. */
+        static Credentials from(UnaryOperator<String> environment) {
+            Credentials clojars = pair(environment, "CLOJARS_USERNAME", "CLOJARS_PASSWORD");
+            return clojars != null ? clojars : pair(environment, "MAVEN_USER", "MAVEN_PASSWORD");
+        }
+
+        /**
+         * A sentence naming a pair with exactly one half set, or null if neither is.
+         *
+         * <p>Worth saying, because the mistake it describes used to be invisible: the run would
+         * proceed with a mixed pair and fail at the server with a 401, which reads as "the token
+         * is wrong" rather than "the token was not the one you meant".
+         */
+        static String halfConfigured(UnaryOperator<String> environment) {
+            String clojars = missingHalf(environment, "CLOJARS_USERNAME", "CLOJARS_PASSWORD");
+            return clojars != null
+                    ? clojars
+                    : missingHalf(environment, "MAVEN_USER", "MAVEN_PASSWORD");
+        }
+
+        private static String missingHalf(
+                UnaryOperator<String> environment, String userVariable, String passwordVariable) {
+            boolean user = value(environment, userVariable) != null;
+            boolean password = value(environment, passwordVariable) != null;
+            if (user == password) {
+                return null;
+            }
+            return user
+                    ? passwordVariable + " is not set, though " + userVariable + " is"
+                    : userVariable + " is not set, though " + passwordVariable + " is";
+        }
+
+        private static Credentials pair(
+                UnaryOperator<String> environment, String userVariable, String passwordVariable) {
+            String user = value(environment, userVariable);
+            String password = value(environment, passwordVariable);
             return user == null || password == null ? null : new Credentials(user, password);
         }
 
-        private static String firstSet(String... names) {
-            for (String name : names) {
-                String value = System.getenv(name);
-                if (value != null && !value.isEmpty()) {
-                    return value;
-                }
-            }
-            return null;
+        private static String value(UnaryOperator<String> environment, String name) {
+            String value = environment.apply(name);
+            return value == null || value.isEmpty() ? null : value;
         }
 
         String basic() {

@@ -207,3 +207,19 @@ shellcheck_test(
     srcs = [":publish_launcher_test"],
     tags = ["lint"],
 )
+
+# Which credentials the publisher picks is a property of the process environment, and a
+# JVM cannot honestly change its own — so this one is a subprocess test too.
+sh_test(
+    name = "credentials_test",
+    size = "small",
+    srcs = ["credentials_test.sh"],
+    args = ["$(rootpath :clj-grpc.publish)"],
+    data = [":clj-grpc.publish"],
+)
+
+shellcheck_test(
+    name = "credentials_test_lint",
+    srcs = [":credentials_test"],
+    tags = ["lint"],
+)
