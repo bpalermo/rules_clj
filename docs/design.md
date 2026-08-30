@@ -199,6 +199,7 @@ clj_binary(name, main, deps, ...)
 clj_test(name, ns, deps, ...)
 clj_repl(name, deps, dirs, ...)
 clj_native_binary(name, binary_name, jar, config, extra_args, ...)
+clj_maven_export(name, group_id, artifact_id, version_file, deps_edn, srcs, ...)
 ```
 
 Two deliberate departures from what a Clojure ruleset usually looks like:
@@ -302,9 +303,47 @@ available. As of v0.12.0 its rule still loads `apple_support` and calls `apple_s
 same key: SDKROOT*. Until that changes, a rule that works on macOS has to invoke the launcher
 directly, and that is what `clj_native_binary` does.
 
+## Publishing
+
+A Clojure library that builds with Bazel still, almost always, carries a `build.clj`, a
+`:build` alias and a `tools.build` dependency — a second build system kept alive to write a
+pom and make some HTTP requests. `clj_maven_export` is the claim that a ruleset which already
+knows the sources, the metadata and the packaging should not need one.
+
+The whole design is one boundary, drawn between two jobs that publishing tools habitually run
+together:
+
+| `bazel build //:lib` | pom + jar. A pure function of the source tree — cached, sandboxed, and worth running on every pull request, which is what catches a malformed pom months before a release. |
+| `bazel run //:lib.publish` | the upload. Not hermetic, not cacheable, not idempotent, since Clojars releases are immutable and a second attempt is an error. A `manual` leaf, the same shape as `oci_push`. |
+
+Three consequences follow, and each is visible in the API:
+
+- **The version lives in a file**, read by an action rather than during analysis. So the
+  outputs are `pom.xml` and `{name}.jar` rather than `{artifact}-{version}.jar`, and the
+  coordinates travel to the publisher in a `coordinates.txt`. Bumping a version re-runs one
+  action instead of re-analysing the graph, and nothing in the build graph has to know it.
+- **Credentials are read by the publisher process**, from `CLOJARS_USERNAME` /
+  `CLOJARS_PASSWORD` (or `MAVEN_USER` / `MAVEN_PASSWORD`), never by Bazel. A secret that
+  reaches an action's environment reaches its cache key and its execution log with it.
+- **The pom's dependencies come from the `deps.edn`, not from the Bazel graph.** The top-level
+  `:deps` only, emitted verbatim — no resolution, no version selection, aliases invisible. A
+  library's published contract is the set of coordinates its consumers must resolve, which is
+  what the `deps.edn` states; the Bazel graph holds one lockfile's *answer* to that question,
+  and publishing an answer as though it were the question is how a hand-pinned transitive
+  graph gets silently unpinned. `//tests/maven` checks the generated pom against one that was
+  really deployed to Clojars, whose fourteen hand-pinned Netty artifacts are exactly that case.
+
+The publisher is JDK-only, like the compiler shim, for the same reason: a ruleset that needs a
+dependency resolver to build itself makes every consumer pay for it, and four HTTP PUTs per
+artifact do not need Aether.
+
 ## Non-goals
 
 - **Windows.** Untested and unclaimed until someone runs it there.
+- **Signing, and Maven Central.** Clojars does not require signatures, and Central requires
+  considerably more than one; a half-implemented signing story is worse than an absent one.
+  `clj_maven_export` publishes source jars to a Maven repository, which is what a Clojure
+  library is.
 - **Leiningen or boot project files.** `deps.edn` is the format with a specification and a
   library to read it.
 - **Being a drop-in replacement** for another ruleset. Migration is a port, and the API is

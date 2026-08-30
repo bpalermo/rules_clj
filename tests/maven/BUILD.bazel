@@ -1,0 +1,137 @@
+"""The publishing rules, checked against an artifact that was actually published.
+
+The fixtures are clj-grpc v0.1.4: its `deps.edn` and `version.edn` copied verbatim, and
+the `pom.xml` that `tools.build` produced from them and `deps-deploy` uploaded to
+Clojars. So the question these tests ask is not "does the generator agree with itself"
+but "would this rule have produced the artifact that shipped".
+
+That matters most for one property. clj-grpc pins fourteen Netty artifacts at top level
+to hold gRPC and Netty in the alignment their SECURITY.md requires, including
+netty-transport-native-epoll twice — once per architecture classifier. A generator that
+resolved dependencies, deduplicated by artifactId, or dropped the `$classifier` suffix
+would produce a pom that looks right and breaks epoll in every consumer. The golden
+comparison is what makes that a build failure here rather than a bug report there.
+"""
+
+load("@rules_shell//shell:sh_test.bzl", "sh_test")
+load("//bazel/lint:linters.bzl", "shellcheck_test")
+load("//clojure:defs.bzl", "clj_library", "clj_maven_export", "clj_test")
+
+package(default_visibility = ["//visibility:private"])
+
+# The metadata is clj-grpc's own, so the golden comparison can cover the parts of a pom
+# that are not dependencies — scm, licences, description, url — rather than only the
+# part that is easy to check.
+clj_maven_export(
+    name = "clj-grpc",
+    testonly = True,
+    srcs = ["fixtures/src/clj_grpc/core.clj"],
+    artifact_id = "clj-grpc",
+    deps_edn = "fixtures/deps.edn",
+    description = "gRPC for Clojure on non-shaded Netty, over clj-protobuf: dynamic services from generated code, Unix domain sockets, epoll, and Knative presets.",
+    group_id = "com.github.bpalermo",
+    license = (
+        "Apache-2.0",
+        "https://www.apache.org/licenses/LICENSE-2.0",
+    ),
+    scm_url = "https://github.com/bpalermo/clj-grpc",
+    strip_prefix = "tests/maven/fixtures/src",
+    url = "https://github.com/bpalermo/clj-grpc",
+    version_file = "fixtures/version.edn",
+)
+
+# The export's DefaultInfo holds the jar and the pom together, which is right for
+# `bazel build` and useless for `$(rootpath)`. These name one file each.
+filegroup(
+    name = "generated_pom",
+    testonly = True,
+    srcs = [":clj-grpc"],
+    output_group = "pom",
+)
+
+filegroup(
+    name = "generated_jar",
+    testonly = True,
+    srcs = [":clj-grpc"],
+    output_group = "jar",
+)
+
+filegroup(
+    name = "generated_coordinates",
+    testonly = True,
+    srcs = [":clj-grpc"],
+    output_group = "coordinates",
+)
+
+clj_library(
+    name = "pom_gen_test_lib",
+    testonly = True,
+    srcs = ["maven/pom_gen_test.clj"],
+    namespaces = ["maven.pom-gen-test"],
+    strip_prefix = "tests/maven",
+)
+
+clj_test(
+    name = "pom_gen_test",
+    size = "small",
+    # The files reach the test through runfiles; the env vars name them. A java_test
+    # runs with the runfiles tree as its working directory, so a rootpath is directly
+    # openable — see the `runfile` helper for the TEST_SRCDIR fallback when it is not.
+    data = [
+        "fixtures/clj-grpc-0.1.4.pom",
+        ":generated_jar",
+        ":generated_pom",
+    ],
+    env = {
+        "GENERATED_POM": "$(rootpath :generated_pom)",
+        "GENERATED_JAR": "$(rootpath :generated_jar)",
+        "DEPLOYED_POM": "$(rootpath fixtures/clj-grpc-0.1.4.pom)",
+    },
+    ns = "maven.pom-gen-test",
+    deps = [":pom_gen_test_lib"],
+)
+
+clj_library(
+    name = "publisher_test_lib",
+    testonly = True,
+    srcs = ["maven/publisher_test.clj"],
+    namespaces = ["maven.publisher-test"],
+    strip_prefix = "tests/maven",
+    # The publisher's classes, so the test calls Publisher.run in-process rather than
+    # parsing the output of a subprocess it started.
+    deps = ["//src/main/java/dev/palermo/rulesclj/maven:publisher_lib"],
+)
+
+clj_test(
+    name = "publisher_test",
+    size = "small",
+    data = [
+        ":generated_coordinates",
+        ":generated_jar",
+        ":generated_pom",
+    ],
+    env = {
+        "GENERATED_POM": "$(rootpath :generated_pom)",
+        "GENERATED_JAR": "$(rootpath :generated_jar)",
+        "GENERATED_COORDINATES": "$(rootpath :generated_coordinates)",
+    },
+    ns = "maven.publisher-test",
+    deps = [":publisher_test_lib"],
+)
+
+# The launcher is generated Starlark string formatting around a runfiles lookup, which
+# is the kind of code that is either right or catastrophically wrong and cannot be
+# checked by reading it. Running it is the check. See the script for what each case is.
+sh_test(
+    name = "publish_launcher_test",
+    size = "small",
+    srcs = ["publish_launcher_test.sh"],
+    args = ["$(rootpath :clj-grpc.publish)"],
+    data = [":clj-grpc.publish"],
+)
+
+shellcheck_test(
+    name = "publish_launcher_test_lint",
+    srcs = [":publish_launcher_test"],
+    tags = ["lint"],
+)

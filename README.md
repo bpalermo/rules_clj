@@ -49,8 +49,10 @@ says so plainly instead of finding out later.
 | `clj_binary`, `clj_test`, `clj_repl` | Run it. Tests report per-`deftest` results as JUnit XML, so a failure names the test rather than the target. |
 | `cljs_library` | ClojureScript through `cljs.main`. |
 | `clj_native_binary` | A GraalVM native image. The example starts in 0.01s against 0.28s for the same program on a JVM. |
+| `clj_maven_export` | A publishable jar and its pom, plus a `bazel run` target that uploads them to Clojars. No `build.clj`, no second toolchain. |
 | `//tools/lock` | Resolves your `deps.edn` once into a lockfile. Builds then fetch by digest — no Clojure CLI, no `~/.m2`, no resolution at build time. |
 | `//tools/tidy` | Writes the BUILD files your `ns` forms imply, and `--mode=check` fails when they drift. |
+| `//tools/pom_gen` | Derives a pom from a `deps.edn` — the action behind `clj_maven_export`, runnable by hand while working on one. |
 
 ## Using it
 
@@ -89,6 +91,70 @@ toolchain, no Maven resolver involved. Override it by registering your own `clj_
 `clj_test` runs one namespace per target, and writes a JUnit XML report so a failure names the
 `deftest` and the line rather than just the target. See [`examples/hello`](examples/hello) for a
 module that builds, runs and tests.
+
+## Publishing
+
+A Clojure library that builds with Bazel usually still carries a `build.clj`, a `:build`
+alias and a second toolchain, for the sole purpose of writing a pom and making some HTTP
+requests. `clj_maven_export` replaces all of it:
+
+```starlark
+load("@rules_clj//clojure:defs.bzl", "clj_maven_export")
+
+clj_maven_export(
+    name = "clj-grpc",
+    srcs = glob(["src/**/*.clj"]),
+    artifact_id = "clj-grpc",
+    deps_edn = "deps.edn",
+    group_id = "com.github.bpalermo",
+    license = ("Apache-2.0", "https://www.apache.org/licenses/LICENSE-2.0"),
+    scm_url = "https://github.com/bpalermo/clj-grpc",
+    strip_prefix = "src",
+    version_file = "version.edn",
+)
+```
+
+```sh
+bazel build //:clj-grpc                       # the jar and the pom
+bazel run //:clj-grpc.publish -- --dry-run    # print every PUT, send nothing
+bazel run //:clj-grpc.publish                 # upload
+```
+
+Two targets, because publishing is two jobs that most tools run as one:
+
+| | |
+|---|---|
+| `bazel build //:clj-grpc` | Hermetic, cacheable, safe to run anywhere. A pure function of the source tree, so **run it in CI** — it tells you the pom is well-formed and the jar packs, months before anyone tries to cut a release. |
+| `bazel run //:clj-grpc.publish` | Not hermetic, not cacheable, not idempotent — Clojars refuses a second attempt at a version, because releases there are immutable. Tagged `manual`, so `bazel build //...` never touches it. The same shape as `oci_push`. |
+
+The pom's `<dependencies>` are the `deps.edn`'s **top-level** `:deps`, emitted verbatim:
+same versions, same `$classifier` suffixes, same `:exclusions`, no resolution. Alias deps
+are invisible, so a test runner never becomes a consumer's problem. That verbatim rule is
+not laziness — a library that pins its transitive graph by hand (clj-grpc pins fourteen
+Netty artifacts to hold gRPC and Netty in alignment) needs the pom to say what it asked
+for, not what one machine's resolver answered. `//tests/maven` checks the generated pom
+against the pom clj-grpc actually deployed to Clojars, dependency for dependency.
+
+The version lives in a **file** rather than an attribute, read by an action rather than
+during analysis. Bumping it re-runs one action instead of re-analysing the graph, and the
+file a release workflow already reads is the file the pom comes from.
+
+Credentials are read by the publisher process from `CLOJARS_USERNAME` and
+`CLOJARS_PASSWORD` (falling back to `MAVEN_USER` and `MAVEN_PASSWORD`) at the moment of
+the request, and never by Bazel. A secret that reaches an action's environment reaches
+its cache key and its execution log too. On Clojars the password must be a deploy token.
+
+To exercise the whole path without publishing anything, install into a local repository:
+
+```sh
+bazel run //:clj-grpc.publish -- --repository=file://"$HOME"/.m2/repository
+```
+
+Being honest about the edges: the jar holds **sources**, not classes — a Clojure library
+compiles in its consumer's process, and shipping AOT classes freezes protocols and records
+against the versions present when you built. There is no GPG signing (Clojars does not
+require it, and Maven Central needs considerably more than a signature), and no
+`maven-metadata.xml` is written, which release versions do not need.
 
 ## Development
 

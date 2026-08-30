@@ -1,0 +1,31 @@
+"""The pom generator.
+
+Not a `bazel run` tool like //tools/lock and //tools/tidy: a pom is a build output, so
+this runs as an action inside `clj_maven_export`, on the Clojure the toolchain selected.
+The binary exists so it can be driven by hand while working on it —
+
+  bazel run //tools/pom_gen -- --deps-edn=... --group-id=... --pom-out=/tmp/pom.xml
+
+— but nothing in a build uses it. The library's jar is what the rule puts on the action's
+classpath, exactly the way //clojure/private/compile.bzl runs the compiler shim.
+
+No third-party dependencies: reading a deps.edn needs `clojure.edn`, and writing XML with
+no timestamps and a fixed element order is easier without a library than with one.
+"""
+
+load("//clojure:defs.bzl", "clj_binary", "clj_library")
+
+package(default_visibility = ["//visibility:public"])
+
+clj_library(
+    name = "pom_gen_lib",
+    srcs = ["rules_clj/pom_gen.clj"],
+    namespaces = ["rules-clj.pom-gen"],
+    strip_prefix = "tools/pom_gen",
+)
+
+clj_binary(
+    name = "pom_gen",
+    main = "rules-clj.pom-gen",
+    deps = [":pom_gen_lib"],
+)

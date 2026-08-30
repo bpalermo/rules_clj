@@ -1,0 +1,5 @@
+;; VENDORED FIXTURE — clj-grpc's version.edn at v0.1.4, copied verbatim.
+;; The single version source: build.clj reads it for the pom, the release
+;; workflow compares it against the tag, and the version-consistency test keeps
+;; the README snippet in agreement.
+{:version "0.1.4"}
