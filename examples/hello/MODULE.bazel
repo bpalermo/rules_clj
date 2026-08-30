@@ -5,7 +5,7 @@ module(
     version = "0.0.0",
 )
 
-bazel_dep(name = "rules_clj", version = "0.1.0")
+bazel_dep(name = "rules_clj", version = "0.2.0")
 
 # Resolves to the ruleset under test. Also what a BCR test module uses, where the
 # path lands on the extracted release archive.

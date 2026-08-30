@@ -1,6 +1,6 @@
 # rules_clj — Bazel rules for Clojure.
 #
-# 0.1.0, not 1.0.0. Everything in docs/design.md is implemented and tested, but nothing
+# 0.2.0, not 1.0.0. Everything in docs/design.md is implemented and tested, but nothing
 # has been used in anger by anyone but its author, and the API should be allowed to move
 # once real use finds the parts that are wrong.
 #
@@ -11,7 +11,7 @@
 # the real thing.
 module(
     name = "rules_clj",
-    version = "0.1.0",
+    version = "0.2.0",
 )
 
 bazel_dep(name = "bazel_skylib", version = "1.9.2")

@@ -2,13 +2,17 @@
 
 Bazel rules for Clojure.
 
-> **Status: 0.1.0, in the [Bazel Central Registry](https://registry.bazel.build/modules/rules_clj).**
+> **Status: 0.2.0, in the [Bazel Central Registry](https://registry.bazel.build/modules/rules_clj).**
 > Compilation, tests, binaries, REPLs, `deps.edn` dependencies, BUILD generation,
-> ClojureScript and GraalVM native images all work, on Bazel 8 and 9 across Linux and
-> macOS. `bazel_dep(name = "rules_clj", version = "0.1.0")` is all a consumer needs —
-> protoc-gen-clojure, clj-protobuf and clj-grpc build with exactly that.
+> ClojureScript, GraalVM native images and Maven publishing all work, on Bazel 8 and 9
+> across Linux and macOS. `bazel_dep(name = "rules_clj", version = "0.2.0")` is all a
+> consumer needs — protoc-gen-clojure, clj-protobuf and clj-grpc build with exactly that.
 >
-> It is a first release. Everything documented is implemented and tested, and nothing has been
+> **New in 0.2.0:** `clj_maven_export` publishes to Clojars from Bazel, so a library no
+> longer needs a `build.clj` and a second build system to write a pom and make some HTTP
+> requests.
+>
+> It is early. Everything documented is implemented and tested, and nothing has been
 > used in anger by anyone but its author, so expect the API to move where real use finds it
 > wrong.
 
@@ -58,7 +62,7 @@ says so plainly instead of finding out later.
 
 ```starlark
 # MODULE.bazel
-bazel_dep(name = "rules_clj", version = "0.1.0")
+bazel_dep(name = "rules_clj", version = "0.2.0")
 ```
 
 ```starlark
