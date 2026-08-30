@@ -21,6 +21,7 @@ import java.util.Base64;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
@@ -230,17 +231,36 @@ public final class Publisher {
         }
     }
 
+    /** A dotted quad, with the range of each octet left to {@link #isLoopback}. */
+    private static final Pattern IPV4 =
+            Pattern.compile("(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})");
+
     /**
      * Whether this host is this machine, and therefore somewhere plain http cannot leak to.
      *
      * <p>The carve-out exists because a repository run on the developer's own machine for a test
      * is the one case where http is not a mistake, and there the request never reaches a network.
+     *
+     * <p>It has to be exact, because everything it admits skips the https requirement. A prefix
+     * test such as {@code startsWith("127.")} reads as "in 127.0.0.0/8" and is not: {@code
+     * 127.attacker.example} is a perfectly ordinary hostname that resolves wherever its owner
+     * points it, and would have taken the deploy token there in clear text. So the name forms are
+     * compared whole, and the numeric form is parsed as four octets rather than matched as text.
      */
     private static boolean isLoopback(String host) {
-        return host.equalsIgnoreCase("localhost")
-                || host.equals("::1")
-                || host.equals("[::1]")
-                || host.startsWith("127.");
+        if (host.equalsIgnoreCase("localhost") || host.equals("::1") || host.equals("[::1]")) {
+            return true;
+        }
+        Matcher address = IPV4.matcher(host);
+        if (!address.matches()) {
+            return false;
+        }
+        for (int group = 1; group <= 4; group++) {
+            if (Integer.parseInt(address.group(group)) > 255) {
+                return false;
+            }
+        }
+        return Integer.parseInt(address.group(1)) == 127;
     }
 
     private static void addArtifact(List<Upload> uploads, String base, String name, Path file)

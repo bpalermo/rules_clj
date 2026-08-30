@@ -176,7 +176,18 @@
    ["clojars.org/repo" "needs a scheme"]
    ["ftp://clojars.org/repo" "must be http, https or file:"]
    ["https://clojars .org/repo" "not a usable repository URL"]
-   ["http://repo.example.com/repo" "plain http"]])
+   ["http://repo.example.com/repo" "plain http"]
+   ;; Everything the loopback carve-out admits skips the https requirement, so the ways
+   ;; of looking like loopback without being it belong in this table too. Each of these
+   ;; is an ordinary hostname that resolves wherever its owner points it.
+   ["http://127.attacker.example/repo" "plain http"]
+   ["http://127.0.0.1.attacker.example/repo" "plain http"]
+   ["http://localhost.attacker.example/repo" "plain http"]
+   ;; These two never reach the loopback check: java.net.URI will not read a host that
+   ;; looks like a number and is not an address, so they are refused a step earlier. The
+   ;; entries stay because what matters is that they are refused, not by which check.
+   ["http://1270.0.1/repo" "names no host"]
+   ["http://127.0.0.999/repo" "names no host"]])
 
 (deftest http-to-somewhere-that-is-not-this-machine-is-refused
   (testing "the credentials travel in an Authorization header, which http sends in clear
