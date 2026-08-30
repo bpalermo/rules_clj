@@ -50,7 +50,7 @@ def jar_entry_path(file, strip_prefix):
         fail("{} is not under strip_prefix '{}'".format(path, strip_prefix))
     return path[len(prefix):]
 
-def build_jar(ctx, output, files, strip_prefix):
+def build_jar(ctx, output, files, strip_prefix, extra_entries = {}):
     """Zips files into a jar, stripping a prefix from each path.
 
     Uses Bazel's own zipper, which writes fixed timestamps, so the output is
@@ -61,6 +61,10 @@ def build_jar(ctx, output, files, strip_prefix):
       output: the File to write.
       files: list of Files to include.
       strip_prefix: path prefix to remove from each, or "" to keep paths as-is.
+      extra_entries: {entry path: File} for files whose place in the jar does not
+        follow from their path. A generated pom belongs at
+        META-INF/maven/{group}/{artifact}/pom.xml, which no strip_prefix can produce
+        from bazel-out/.../pom.xml — so the caller names the entry instead.
     """
 
     # Entries are computed here rather than in a map_each closure: closures run when
@@ -68,6 +72,14 @@ def build_jar(ctx, output, files, strip_prefix):
     # fail during execution with a Starlark stack trace instead of during analysis
     # with the label that caused it.
     entries = ["{}={}".format(jar_entry_path(f, strip_prefix), f.path) for f in files]
+
+    # Sorted, so the zip's entry order depends on the contents rather than on the
+    # iteration order of a dict.
+    extra_files = []
+    for entry in sorted(extra_entries):
+        file = extra_entries[entry]
+        entries.append("{}={}".format(entry, file.path))
+        extra_files.append(file)
 
     args = ctx.actions.args()
     args.add("c", output)
@@ -78,7 +90,7 @@ def build_jar(ctx, output, files, strip_prefix):
     ctx.actions.run(
         executable = ctx.executable._zipper,
         arguments = [args],
-        inputs = files,
+        inputs = files + extra_files,
         outputs = [output],
         mnemonic = "ClojureJar",
         progress_message = "Packaging %{label}",

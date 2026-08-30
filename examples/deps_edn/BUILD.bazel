@@ -1,4 +1,34 @@
+load("@rules_clj//clojure:defs.bzl", "clj_maven_export")
+
 exports_files([
     "deps.edn",
     "deps.lock.json",
 ])
+
+# The same deps.edn, read a second time and for a different reason.
+#
+# //tools/lock turned it into deps.lock.json, which is how the BUILD files get their
+# dependencies: pinned by digest, fetched without a resolver. This reads the file itself
+# — the top-level :deps, verbatim — to say what a CONSUMER of this library would have to
+# resolve. The two must not be confused: publishing the lockfile's answer would ship one
+# resolution of one machine's graph as though it were the library's requirements.
+#
+#   bazel build //:app                    the jar and the pom. Hermetic, and CI runs it.
+#   bazel run //:app.publish -- --dry-run  what an upload would send.
+#   bazel run //:app.publish              the upload itself. Needs CLOJARS_* in the env.
+clj_maven_export(
+    name = "app",
+    srcs = ["//src/app:config.clj"],
+    artifact_id = "deps-edn-example",
+    deps_edn = "deps.edn",
+    description = "The rules_clj deps.edn example, packaged as it would be published.",
+    group_id = "dev.palermo.example",
+    license = (
+        "Apache-2.0",
+        "https://www.apache.org/licenses/LICENSE-2.0",
+    ),
+    scm_url = "https://github.com/bpalermo/rules_clj",
+    strip_prefix = "src",
+    url = "https://github.com/bpalermo/rules_clj",
+    version_file = "version.edn",
+)

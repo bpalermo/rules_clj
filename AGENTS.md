@@ -29,13 +29,15 @@ that difference is worth preserving even where a similar-looking shortcut exists
 | `clojure/toolchain.bzl` | the toolchain type, `clj_toolchain`, and the runtime alias the java_* macros depend on |
 | `clojure/extensions.bzl` | the module extension that fetches Clojure, pinned by digest |
 | `clojure/runtime/` | what lands on a program's classpath: the toolchain's Clojure, and the test runner |
-| `src/main/java/.../` | the compiler shim and the persistent worker — **no third-party dependencies, ever** |
+| `src/main/java/.../` | the compiler shim, the persistent worker and the Maven publisher — **no third-party dependencies, ever** |
 | `tests/conformance/` | what AOT has to get right; each fixture is its own target so the boundaries are real |
 | `tests/shim/` | drives the shim's guard into failure states a well-formed BUILD file cannot produce |
+| `tests/maven/` | the generated pom against one really deployed to Clojars, and the publish launcher run four ways |
 | `bazel/dev/` | formatting, wired as both a runnable target and a test |
 | `docs/design.md` | the specification |
 | `tools/lock/` | deps.edn -> lockfile, via tools.deps. Its own dependency lock is committed and self-hosting |
 | `tools/tidy/` | BUILD generation from ns forms, with a `--mode=check` drift gate |
+| `tools/pom_gen/` | deps.edn -> pom. Runs as an action inside `clj_maven_export`, not as a `bazel run` tool |
 | `examples/` | one module per capability: hello, deps_edn, tidy, cljs, native. Each is its own Bazel module, run from its own directory |
 
 ## Commands

@@ -1,0 +1,11 @@
+;; The version, in a file rather than in a BUILD attribute.
+;;
+;; clj_maven_export reads this in an ACTION, not during analysis. A bump re-runs the two
+;; actions that read it — the pom generator, and the packaging step that puts the pom
+;; inside the jar — and re-analyses nothing, where an attribute would make every release
+;; a graph change. It is also the shape a Clojure project already has: the same file a
+;; release workflow reads to check the tag, and a version-consistency test reads to
+;; check the README.
+;;
+;; A bare "0.1.0" works too; the map is what most projects have.
+{:version "0.1.0"}
