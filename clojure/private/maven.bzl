@@ -179,8 +179,9 @@ Also written into the pom as `<sourceDirectory>`, which is what it is.""",
             doc = """A file holding the version — `{:version "1.2.3"}` or the bare string.
 
 A file rather than an attribute so that the version is an action input rather than an
-analysis input: bumping it re-runs one action instead of re-analysing the graph, and
-the same file can be read by a release workflow and a version-consistency test.""",
+analysis input: bumping it re-runs the two actions that read it — the pom generator, and
+the packaging step that embeds the pom in the jar — and re-analyses nothing. The same
+file can then be read by a release workflow and a version-consistency test.""",
             allow_single_file = True,
             mandatory = True,
         ),
@@ -233,12 +234,26 @@ root="${{runfiles}}/{workspace}"
 
 # "$@" last, so `bazel run //:lib.publish -- --dry-run` works and a later flag wins.
 exec "${{root}}/{publisher}" \\
-  "--repository={repository}" \\
+  {repository} \\
   "--coordinates=${{root}}/{coordinates}" \\
   "--pom=${{root}}/{pom}" \\
   "--jar=${{root}}/{jar}" \\
   "$@"
 """
+
+def _shell_quote(value):
+    """Renders `value` as a single bash word that expands to exactly itself.
+
+    The repository is the one thing in this launcher that comes from a BUILD file, and
+    it goes into a generated shell script. Inside double quotes bash still expands `$`,
+    backticks and `$(...)`, so a repository containing any of them would have part of
+    itself replaced by the output of a command — and a `file:` repository is a
+    filesystem path, which is exactly where a `$` or a space turns up.
+
+    Single quotes suppress every expansion bash has. The only character they cannot
+    contain is a single quote, which is closed, escaped and reopened in the usual way.
+    """
+    return "'" + value.replace("'", "'\\''") + "'"
 
 def _clj_maven_publish_impl(ctx):
     export = ctx.attr.export[MavenExportInfo]
@@ -253,7 +268,7 @@ def _clj_maven_publish_impl(ctx):
         content = _LAUNCHER.format(
             workspace = ctx.workspace_name,
             publisher = ctx.executable._publisher.short_path,
-            repository = ctx.attr.repository,
+            repository = _shell_quote("--repository=" + ctx.attr.repository),
             coordinates = export.coordinates.short_path,
             pom = export.pom.short_path,
             jar = export.jar.short_path,

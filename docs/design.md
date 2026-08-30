@@ -320,8 +320,10 @@ Three consequences follow, and each is visible in the API:
 
 - **The version lives in a file**, read by an action rather than during analysis. So the
   outputs are `pom.xml` and `{name}.jar` rather than `{artifact}-{version}.jar`, and the
-  coordinates travel to the publisher in a `coordinates.txt`. Bumping a version re-runs one
-  action instead of re-analysing the graph, and nothing in the build graph has to know it.
+  coordinates travel to the publisher in a `coordinates.txt`. Bumping a version re-runs the
+  two actions that read it — the pom generator, and the packaging step, since the pom is
+  embedded in the jar — and re-analyses nothing at all. Nothing in the build graph has to
+  know the version, which is the property being bought; the action count is what it costs.
 - **Credentials are read by the publisher process**, from `CLOJARS_USERNAME` /
   `CLOJARS_PASSWORD` (or `MAVEN_USER` / `MAVEN_PASSWORD`), never by Bazel. A secret that
   reaches an action's environment reaches its cache key and its execution log with it.
@@ -334,8 +336,8 @@ Three consequences follow, and each is visible in the API:
   really deployed to Clojars, whose fourteen hand-pinned Netty artifacts are exactly that case.
 
 The publisher is JDK-only, like the compiler shim, for the same reason: a ruleset that needs a
-dependency resolver to build itself makes every consumer pay for it, and four HTTP PUTs per
-artifact do not need Aether.
+dependency resolver to build itself makes every consumer pay for it, and five HTTP PUTs per
+artifact — the file and its four checksums, so ten for a release — do not need Aether.
 
 ## Non-goals
 

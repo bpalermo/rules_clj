@@ -1,0 +1,34 @@
+;; A FIXTURE, not a real project: every dependency here exists to exercise one spelling
+;; of `:exclusions` through the generator and out the other side as `<exclusion>`.
+;;
+;; Exclusions are the part of a deps.edn that a pom can express exactly, and therefore
+;; the part it is worst to get quietly wrong: a dropped exclusion does not fail anyone's
+;; build, it just puts back the transitive dependency the author removed on purpose, and
+;; the consumer finds out through a duplicate class or a version conflict a long way from
+;; here. The clj-grpc golden fixture has none — it excludes nothing — so this file is
+;; where that behaviour is pinned.
+{:paths ["src"]
+ :deps {org.clojure/clojure {:mvn/version "1.12.1"}
+
+        ;; The ordinary spelling: a namespaced symbol is group/artifact.
+        io.grpc/grpc-netty {:mvn/version "1.83.1"
+                            :exclusions [io.netty/netty-codec-http2]}
+
+        ;; A BARE symbol, no namespace. The old single-segment convention, where the
+        ;; groupId and the artifactId are the same string — commons-codec really is
+        ;; commons-codec:commons-codec. Reading this as an artifact with no group would
+        ;; emit an exclusion that matches nothing.
+        ring/ring-core {:mvn/version "1.12.2"
+                        :exclusions [commons-codec]}
+
+        ;; A whole group. Maven reads `*` as a wildcard artifactId; Clojure reads it as
+        ;; an ordinary symbol name, which is the only reason this spelling works at all.
+        org.clojure/core.async {:mvn/version "1.6.681"
+                                :exclusions [org.clojure/*]}
+
+        ;; Several at once, deliberately out of order in the source: the output is
+        ;; sorted, so that a pom is a function of its inputs and not of map iteration.
+        com.example/many-exclusions {:mvn/version "1.0.0"
+                                     :exclusions [zzz.group/last-artifact
+                                                  aaa.group/first-artifact
+                                                  mmm.group/middle-artifact]}}}

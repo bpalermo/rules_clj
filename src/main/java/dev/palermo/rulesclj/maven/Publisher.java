@@ -27,8 +27,9 @@ import java.util.Map;
  *
  * <p>Depends on nothing but the JDK, for the same reason the compiler shim does: rules_clj is a
  * ruleset before it is a program, and a ruleset that needs a dependency resolver in order to be
- * built is one every consumer pays for. A deploy is three or four HTTP PUTs per artifact — the
- * whole of Aether is not required to make them.
+ * built is one every consumer pays for. A deploy is five HTTP PUTs per artifact — the file
+ * itself and its four checksums, so ten for a jar and its pom — and the whole of Aether is not
+ * required to make them.
  *
  * <p>The layout below is simply Maven's, so any tool that speaks it agrees on where a file goes:
  * {@code {repository}/{group with dots as slashes}/{artifact}/{version}/{artifact}-{version}.{ext}}
@@ -122,6 +123,12 @@ public final class Publisher {
      * real run walks, rather than a description of what the code is believed to do.
      */
     static List<Upload> plan(Args parsed) throws IOException, PublishException {
+        // Before anything else, and deliberately inside plan() rather than inside upload():
+        // --dry-run returns as soon as the plan exists, so a check that lived in upload()
+        // would let a dry run report success for a repository the real run cannot use. A
+        // rehearsal that passes where the performance fails is worse than no rehearsal.
+        validateRepository(parsed.repository);
+
         Coordinates coordinates = Coordinates.read(parsed.coordinates);
         String base =
                 stripTrailingSlash(parsed.repository)
@@ -141,7 +148,72 @@ public final class Publisher {
         // half-published version is not something Clojars lets you take back.
         addArtifact(uploads, base, stem + ".jar", parsed.jar);
         addArtifact(uploads, base, stem + ".pom", parsed.pom);
+
+        // The URLs were assembled from coordinates read out of a file, so the base being a
+        // legal URI does not make them one — a version with a space in it would be caught
+        // here rather than by URI.create at the moment of the first PUT. A `file:` upload
+        // never goes near URI, and a filesystem path is allowed to contain anything.
+        if (!isFileRepository(parsed.repository)) {
+            for (Upload upload : uploads) {
+                try {
+                    URI.create(upload.url);
+                } catch (IllegalArgumentException e) {
+                    throw new PublishException(
+                            "these coordinates do not make a usable URL: " + upload.url);
+                }
+            }
+        }
         return uploads;
+    }
+
+    /** Whether this repository is a directory on this machine rather than somewhere to upload. */
+    private static boolean isFileRepository(String repository) {
+        return repository.regionMatches(true, 0, FILE_SCHEME, 0, FILE_SCHEME.length());
+    }
+
+    /**
+     * Checks that the repository is somewhere this can actually send to.
+     *
+     * <p>Everything here is decidable without touching the network or the credentials, which is
+     * the point: it is exactly the set of mistakes a {@code --dry-run} should be able to catch,
+     * and every one of them used to be reported only after the dry run had said the plan was
+     * fine. A repository that does not resolve, is not http(s), names no host, or is a
+     * {@code file:} path that is relative, remote or an existing regular file, is a mistake in
+     * the command line rather than a failure of the upload.
+     */
+    static void validateRepository(String repository) throws PublishException {
+        if (isFileRepository(repository)) {
+            Path root = filePath(repository);
+            if (Files.exists(root) && !Files.isDirectory(root)) {
+                throw new PublishException("a file: repository must be a directory: " + root);
+            }
+            return;
+        }
+
+        URI uri;
+        try {
+            uri = new URI(repository);
+        } catch (URISyntaxException e) {
+            throw new PublishException(
+                    "not a usable repository URL: " + repository + " (" + e.getReason() + ")");
+        }
+        String scheme = uri.getScheme();
+        if (scheme == null) {
+            throw new PublishException(
+                    "the repository needs a scheme, e.g. https://repo.example.com or"
+                            + " file:///path/to/repository, got: "
+                            + repository);
+        }
+        if (!scheme.equalsIgnoreCase("http") && !scheme.equalsIgnoreCase("https")) {
+            throw new PublishException(
+                    "a repository must be http, https or file:, got "
+                            + scheme
+                            + ": "
+                            + repository);
+        }
+        if (uri.getHost() == null) {
+            throw new PublishException("the repository URL names no host: " + repository);
+        }
     }
 
     private static void addArtifact(List<Upload> uploads, String base, String name, Path file)
@@ -159,7 +231,7 @@ public final class Publisher {
 
     private static int upload(Args parsed, List<Upload> uploads, PrintStream out, PrintStream err)
             throws Exception {
-        if (parsed.repository.regionMatches(true, 0, FILE_SCHEME, 0, FILE_SCHEME.length())) {
+        if (isFileRepository(parsed.repository)) {
             Path root = filePath(parsed.repository);
             for (Upload upload : uploads) {
                 Path destination = root.resolve(relativeTo(parsed.repository, upload.url));

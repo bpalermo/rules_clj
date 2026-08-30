@@ -2,11 +2,21 @@
 
 Not a `bazel run` tool like //tools/lock and //tools/tidy: a pom is a build output, so
 this runs as an action inside `clj_maven_export`, on the Clojure the toolchain selected.
-The binary exists so it can be driven by hand while working on it —
+The binary exists so it can be driven by hand while working on it. All seven flags below
+are required, and every path must be ABSOLUTE, because `bazel run` starts the tool in its
+runfiles tree rather than in the directory you typed the command in:
 
-  bazel run //tools/pom_gen -- --deps-edn=... --group-id=... --pom-out=/tmp/pom.xml
+  bazel run //tools/pom_gen -- \
+      --deps-edn="$PWD/deps.edn" \
+      --version-edn="$PWD/version.edn" \
+      --group-id=com.example \
+      --artifact-id=lib \
+      --pom-out=/tmp/pom.xml \
+      --properties-out=/tmp/pom.properties \
+      --coordinates-out=/tmp/coordinates.txt
 
-— but nothing in a build uses it. The library's jar is what the rule puts on the action's
+Optional metadata — --description, --url, --scm-url, --license-name, --license-url,
+--source-directory — is added the same way. Nothing in a build uses this binary. The library's jar is what the rule puts on the action's
 classpath, exactly the way //clojure/private/compile.bzl runs the compiler shim.
 
 No third-party dependencies: reading a deps.edn needs `clojure.edn`, and writing XML with

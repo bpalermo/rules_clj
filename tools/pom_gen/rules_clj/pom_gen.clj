@@ -33,9 +33,24 @@
             [clojure.string :as str]))
 
 (defn- fail
+  "Aborts with a message meant for whoever ran the build.
+
+  Throws rather than calling `System/exit` so that every refusal below can be driven
+  from a test. `-main` turns this back into an exit code, which is what an action needs;
+  a `System/exit` in the middle of the code would take a test JVM with it and leave the
+  failure paths — which are most of this file's behaviour — unreachable."
   [message]
-  (binding [*out* *err*] (println (str "pom-gen: " message)))
-  (System/exit 1))
+  (throw (ex-info (str "pom-gen: " message) {::error true})))
+
+(def ^:private utf-8
+  "Every file read and written here is UTF-8, stated rather than inherited.
+
+  `clojure.java.io` does already default to UTF-8 rather than to the platform charset,
+  so this is not a behaviour change — it is the guarantee written down at the point it
+  is relied on. A pom declares `encoding=\"UTF-8\"` in its first line, and a generated
+  file whose bytes depend on the machine that produced it would not be the cacheable,
+  reproducible action output the rest of this ruleset promises."
+  "UTF-8")
 
 ;; --- reading the project ----------------------------------------------------
 
@@ -45,15 +60,29 @@
   Accepts `{:version \"1.2.3\"}` — the shape a Clojure project already has, where the
   same file feeds a release workflow and a README check — and also a file holding the
   bare version, since a project whose version comes from a generator rarely wraps it in
-  a map. Anything else is the text of the file, trimmed."
+  a map. Anything else is the text of the file, trimmed.
+
+  A blank or non-string version is refused rather than passed along. It is the one input
+  that reaches BOTH the pom and the artifact's file name, so an empty one produces
+  `<version></version>`, coordinates reading `group:artifact:`, and a jar called
+  `lib-.jar` — while `bazel build` reports success, because writing a nonsense pom is not
+  an error to a program that was only asked to write a pom. The first sign of trouble
+  would be a repository rejecting the upload, or worse, accepting it."
   [file]
-  (let [text (str/trim (slurp file))
-        parsed (try (edn/read-string text) (catch Exception _ ::unreadable))]
-    (cond
-      (map? parsed) (or (:version parsed)
-                        (fail (str file " is a map with no :version key")))
-      (string? parsed) parsed
-      :else text)))
+  (let [text (str/trim (slurp file :encoding utf-8))
+        parsed (try (edn/read-string text) (catch Exception _ ::unreadable))
+        version (cond
+                  (map? parsed) (or (:version parsed)
+                                    (fail (str file " is a map with no :version key")))
+                  (string? parsed) parsed
+                  :else text)]
+    (when-not (string? version)
+      (fail (str file " has a :version that is not a string: " (pr-str version))))
+    (when (str/blank? version)
+      (fail (str file " holds no version. Expected {:version \"1.2.3\"} or a file"
+                 " containing just the version; an empty one would publish coordinates"
+                 " with an empty version, which no repository can serve.")))
+    (str/trim version)))
 
 (defn- lib->artifact
   "Splits a tools.deps lib symbol into group, artifact and classifier.
@@ -85,7 +114,7 @@
   Sorted by coordinate so the output does not depend on map iteration order."
   [deps-edn-path]
   (let [deps (:deps (edn/read-string {:default (fn [_tag value] value)}
-                                     (slurp deps-edn-path)))]
+                                     (slurp deps-edn-path :encoding utf-8)))]
     (->> deps
          (map (fn [[lib coord]]
                 (when-not (:mvn/version coord)
@@ -199,13 +228,27 @@
                          [:url "https://repo.clojars.org/"]]]]))))
        "</project>\n"))
 
-(defn -main
-  [& args]
-  (let [opts (into {} (for [a args
-                            :let [[_ k v] (re-matches #"--([^=]+)=(.*)" a)]
-                            :when k]
-                        [(keyword k) v]))
-        {:keys [deps-edn version-edn group-id artifact-id
+(def usage
+  (str "usage: --deps-edn=F --version-edn=F --group-id=G --artifact-id=A"
+       " --pom-out=F --properties-out=F --coordinates-out=F"
+       " [--description=..] [--url=..] [--scm-url=..]"
+       " [--license-name=..] [--license-url=..] [--source-directory=..]"))
+
+(defn parse-args
+  "`--key=value` arguments as a map of keyword to string. Anything else is ignored."
+  [args]
+  (into {} (for [a args
+                 :let [[_ k v] (re-matches #"--([^=]+)=(.*)" a)]
+                 :when k]
+             [(keyword k) v])))
+
+(defn write!
+  "Writes the pom, the properties file and the coordinates named by `opts`.
+
+  Separate from `-main` so a test can call it: it takes a map, writes files and returns
+  the version, with no argument parsing and no exit codes in the way."
+  [opts]
+  (let [{:keys [deps-edn version-edn group-id artifact-id
                 pom-out properties-out coordinates-out]} opts]
     ;; Every one of these is written or read unconditionally below, so all of them are
     ;; required — including the two output paths that were once missing from this check.
@@ -214,23 +257,36 @@
     ;; rather than as the usage line that would have told them what to add.
     (when-not (and deps-edn version-edn group-id artifact-id
                    pom-out properties-out coordinates-out)
-      (fail (str "usage: --deps-edn=F --version-edn=F --group-id=G --artifact-id=A"
-                 " --pom-out=F --properties-out=F --coordinates-out=F"
-                 " [--description=..] [--url=..] [--scm-url=..]"
-                 " [--license-name=..] [--license-url=..] [--source-directory=..]")))
+      (fail usage))
     (let [version (read-version version-edn)]
-      (spit pom-out (pom (assoc opts
-                                :version version
-                                :deps (dependencies deps-edn))))
+      (spit pom-out
+            (pom (assoc opts :version version :deps (dependencies deps-edn)))
+            :encoding utf-8)
       ;; The properties file Maven puts next to the pom inside the jar. No timestamp
       ;; comment, unlike maven-archiver's: the jar has to be byte-identical across
       ;; builds of identical inputs.
       (spit properties-out
             (str "groupId=" group-id "\n"
                  "artifactId=" artifact-id "\n"
-                 "version=" version "\n"))
+                 "version=" version "\n")
+            :encoding utf-8)
       ;; The one place the version crosses from a file into a command line. The publish
       ;; rule reads it at run time, which is what keeps the version out of analysis and
       ;; the jar's file name fixed.
-      (spit coordinates-out (str group-id ":" artifact-id ":" version "\n")))
-    (shutdown-agents)))
+      (spit coordinates-out (str group-id ":" artifact-id ":" version "\n")
+            :encoding utf-8)
+      version)))
+
+(defn -main
+  [& args]
+  (try
+    (write! (parse-args args))
+    (shutdown-agents)
+    (catch clojure.lang.ExceptionInfo e
+      ;; Only our own refusals become an exit code with a message; anything else is a
+      ;; bug here and deserves its stack trace.
+      (when-not (::error (ex-data e))
+        (throw e))
+      (binding [*out* *err*] (println (ex-message e)))
+      (shutdown-agents)
+      (System/exit 1))))

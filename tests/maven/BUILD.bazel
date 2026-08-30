@@ -63,6 +63,27 @@ filegroup(
     output_group = "coordinates",
 )
 
+# The golden fixture excludes nothing, so exclusions — the one part of a deps.edn a pom
+# can express exactly, and therefore the worst part to drop silently — need a fixture of
+# their own. See fixtures/exclusions/deps.edn for what each dependency is there to prove.
+clj_maven_export(
+    name = "exclusions",
+    testonly = True,
+    srcs = ["fixtures/src/clj_grpc/core.clj"],
+    artifact_id = "exclusions",
+    deps_edn = "fixtures/exclusions/deps.edn",
+    group_id = "dev.palermo.test",
+    strip_prefix = "tests/maven/fixtures/src",
+    version_file = "fixtures/exclusions/version.edn",
+)
+
+filegroup(
+    name = "exclusions_pom",
+    testonly = True,
+    srcs = [":exclusions"],
+    output_group = "pom",
+)
+
 clj_library(
     name = "pom_gen_test_lib",
     testonly = True,
@@ -79,6 +100,7 @@ clj_test(
     # openable — see the `runfile` helper for the TEST_SRCDIR fallback when it is not.
     data = [
         "fixtures/clj-grpc-0.1.4.pom",
+        ":exclusions_pom",
         ":generated_jar",
         ":generated_pom",
     ],
@@ -86,9 +108,29 @@ clj_test(
         "GENERATED_POM": "$(rootpath :generated_pom)",
         "GENERATED_JAR": "$(rootpath :generated_jar)",
         "DEPLOYED_POM": "$(rootpath fixtures/clj-grpc-0.1.4.pom)",
+        "EXCLUSIONS_POM": "$(rootpath :exclusions_pom)",
     },
     ns = "maven.pom-gen-test",
     deps = [":pom_gen_test_lib"],
+)
+
+# The generator's refusals, driven directly. Every one of them is a path a BUILD file
+# cannot reach — a build that produced a blank version would have to succeed first — so
+# the only way to check them is to call the functions.
+clj_library(
+    name = "pom_gen_unit_test_lib",
+    testonly = True,
+    srcs = ["maven/pom_gen_unit_test.clj"],
+    namespaces = ["maven.pom-gen-unit-test"],
+    strip_prefix = "tests/maven",
+    deps = ["//tools/pom_gen:pom_gen_lib"],
+)
+
+clj_test(
+    name = "pom_gen_unit_test",
+    size = "small",
+    ns = "maven.pom-gen-unit-test",
+    deps = [":pom_gen_unit_test_lib"],
 )
 
 clj_library(
@@ -119,6 +161,30 @@ clj_test(
     deps = [":publisher_test_lib"],
 )
 
+# A repository value that is hostile to a shell: both spellings of command substitution,
+# a semicolon, and a space. It goes verbatim into the generated launcher, so if it is not
+# quoted there, bash runs `echo boom` and `echo bang` while starting a publish and the
+# artifact goes somewhere nobody named. Nothing is ever written to it — the launcher test
+# only ever runs --dry-run — and the directory deliberately does not exist.
+#
+# publish_launcher_test.sh repeats this string, because it cannot be passed through the
+# sh_test's `args`: those are subject to Make-variable substitution, where `$(echo boom)`
+# is an undefined variable and fails the analysis. Keep the two in step; the test fails
+# loudly if they drift.
+METACHARACTER_REPOSITORY = "file:///tmp/rules_clj-no-such-dir/$(echo boom)/`echo bang`/a b;c/repo"
+
+clj_maven_export(
+    name = "metacharacters",
+    testonly = True,
+    srcs = ["fixtures/src/clj_grpc/core.clj"],
+    artifact_id = "clj-grpc",
+    deps_edn = "fixtures/deps.edn",
+    group_id = "com.github.bpalermo",
+    repository = METACHARACTER_REPOSITORY,
+    strip_prefix = "tests/maven/fixtures/src",
+    version_file = "fixtures/version.edn",
+)
+
 # The launcher is generated Starlark string formatting around a runfiles lookup, which
 # is the kind of code that is either right or catastrophically wrong and cannot be
 # checked by reading it. Running it is the check. See the script for what each case is.
@@ -126,8 +192,14 @@ sh_test(
     name = "publish_launcher_test",
     size = "small",
     srcs = ["publish_launcher_test.sh"],
-    args = ["$(rootpath :clj-grpc.publish)"],
-    data = [":clj-grpc.publish"],
+    args = [
+        "$(rootpath :clj-grpc.publish)",
+        "$(rootpath :metacharacters.publish)",
+    ],
+    data = [
+        ":clj-grpc.publish",
+        ":metacharacters.publish",
+    ],
 )
 
 shellcheck_test(

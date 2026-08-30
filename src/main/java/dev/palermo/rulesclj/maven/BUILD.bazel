@@ -2,8 +2,8 @@
 
 Like the compiler shim next door, it has no `deps` and must never gain any: a ruleset
 that needs a dependency resolver in order to build itself makes every consumer pay for
-it, and this is the tool that would tempt someone to add one. Four HTTP PUTs per
-artifact do not need Aether.
+it, and this is the tool that would tempt someone to add one. Five HTTP PUTs per
+artifact — the file and its four checksums — do not need Aether.
 """
 
 load("@rules_java//java:defs.bzl", "java_binary", "java_library")

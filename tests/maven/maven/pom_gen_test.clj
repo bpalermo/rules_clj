@@ -113,8 +113,26 @@
    :packaging (text pom :packaging)
    :model-version (text pom :modelVersion)})
 
+(defn- exclusions
+  "The `<exclusions>` of one `<dependency>`, as a set of {group artifact}."
+  [node]
+  (set (for [excluded (children (child node :exclusions) :exclusion)]
+         {:group-id (text excluded :groupId)
+          :artifact-id (text excluded :artifactId)})))
+
+(defn- exclusions-by-artifact
+  "Every dependency's exclusions, keyed by artifactId. Dependencies with none are
+  dropped, so the expected map states only what is actually excluded."
+  [pom]
+  (into {}
+        (for [node (children (child pom :dependencies) :dependency)
+              :let [excluded (exclusions node)]
+              :when (seq excluded)]
+          [(text node :artifactId) excluded])))
+
 (def ^:private generated (delay (xml/parse (runfile "GENERATED_POM"))))
 (def ^:private deployed (delay (xml/parse (runfile "DEPLOYED_POM"))))
+(def ^:private with-exclusions (delay (xml/parse (runfile "EXCLUSIONS_POM"))))
 
 ;; --- the golden comparison --------------------------------------------------
 
@@ -149,6 +167,42 @@
                       "pedestal.service" "pedestal.jetty"]]
         (is (not (contains? artifacts absent))
             (str absent " comes from an alias and must not be in the pom"))))))
+
+;; --- exclusions -------------------------------------------------------------
+;;
+;; The golden fixture excludes nothing, so none of the above touches this. A dropped
+;; exclusion does not fail anybody's build — it silently puts back the transitive
+;; dependency the author removed on purpose, and the consumer meets it as a duplicate
+;; class or a version conflict a long way from here.
+
+(deftest exclusions-survive-in-every-spelling-tools-deps-allows
+  (let [by-artifact (exclusions-by-artifact @with-exclusions)]
+    (testing "a namespaced symbol is group/artifact, the ordinary case"
+      (is (= #{{:group-id "io.netty" :artifact-id "netty-codec-http2"}}
+             (get by-artifact "grpc-netty"))))
+    (testing "a bare symbol is the single-segment convention: commons-codec really is
+              commons-codec:commons-codec, and reading it as an artifact with no group
+              would emit an exclusion that matches nothing"
+      (is (= #{{:group-id "commons-codec" :artifact-id "commons-codec"}}
+             (get by-artifact "ring-core"))))
+    (testing "org.clojure/* excludes a whole group — Maven's wildcard, and an ordinary
+              symbol name to Clojure, which is the only reason the spelling works"
+      (is (= #{{:group-id "org.clojure" :artifact-id "*"}}
+             (get by-artifact "core.async"))))
+    (testing "several exclusions on one dependency, sorted rather than in source order"
+      (is (= #{{:group-id "aaa.group" :artifact-id "first-artifact"}
+               {:group-id "mmm.group" :artifact-id "middle-artifact"}
+               {:group-id "zzz.group" :artifact-id "last-artifact"}}
+             (get by-artifact "many-exclusions")))
+      (is (= ["aaa.group" "mmm.group" "zzz.group"]
+             (->> (children (child @with-exclusions :dependencies) :dependency)
+                  (filter #(= "many-exclusions" (text % :artifactId)))
+                  first
+                  (#(children (child % :exclusions) :exclusion))
+                  (mapv #(text % :groupId))))
+          "the source lists them zzz, aaa, mmm; a pom must be a function of its inputs"))
+    (testing "and a dependency that excludes nothing gets no <exclusions> element"
+      (is (nil? (get by-artifact "clojure"))))))
 
 (deftest metadata-matches-the-deployed-pom
   (testing "coordinates"

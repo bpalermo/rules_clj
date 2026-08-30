@@ -136,8 +136,10 @@ for, not what one machine's resolver answered. `//tests/maven` checks the genera
 against the pom clj-grpc actually deployed to Clojars, dependency for dependency.
 
 The version lives in a **file** rather than an attribute, read by an action rather than
-during analysis. Bumping it re-runs one action instead of re-analysing the graph, and the
-file a release workflow already reads is the file the pom comes from.
+during analysis. Bumping it re-runs the two actions that consume it — the pom generator,
+and the packaging step that embeds the pom in the jar — while the rest of the build, and
+the whole analysis phase, is untouched. An attribute would instead make every version bump
+a graph change. The file a release workflow already reads is the file the pom comes from.
 
 Credentials are read by the publisher process from `CLOJARS_USERNAME` and
 `CLOJARS_PASSWORD` (falling back to `MAVEN_USER` and `MAVEN_PASSWORD`) at the moment of

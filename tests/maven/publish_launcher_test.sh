@@ -27,7 +27,16 @@ set -euo pipefail
 
 srcdir="${TEST_SRCDIR:?TEST_SRCDIR is set by Bazel for every test}"
 workspace="${TEST_WORKSPACE:?TEST_WORKSPACE is set by Bazel for every test}"
-launcher="${srcdir}/${workspace}/${1:?usage: publish_launcher_test.sh <rootpath of the publish target>}"
+launcher="${srcdir}/${workspace}/${1:?usage: publish_launcher_test.sh <publish> <publish-with-metacharacters>}"
+metachar_launcher="${srcdir}/${workspace}/${2:?the second argument is the metacharacter publish target}"
+
+# Repeated from //tests/maven:BUILD.bazel, which cannot pass it through the sh_test's
+# `args`: those go through Make-variable substitution, where $(echo boom) is an undefined
+# variable and fails the analysis. Single-quoted here so this script does not do to it
+# exactly what it is checking the launcher does not do.
+#
+# shellcheck disable=SC2016  # the expressions are the fixture; expanding them is the bug.
+METACHARACTER_REPOSITORY='file:///tmp/rules_clj-no-such-dir/$(echo boom)/`echo bang`/a b;c/repo'
 
 failures=0
 
@@ -140,8 +149,42 @@ elif ! grep -Fq "cannot find the runfiles tree" <<<"${output}"; then
 ${output}"
 fi
 
+# --- the repository value is data, not shell ----------------------------------
+#
+# The one thing in the launcher that comes from a BUILD file is the repository, and it
+# lands inside a generated bash script. Unquoted — or quoted with double quotes, which
+# are not quotes as far as $, ` and $() are concerned — a repository containing any of
+# them has part of itself replaced by the output of a command. A `file:` repository is a
+# filesystem path, which is exactly where a $ or a space turns up.
+
+echo "== a repository full of shell metacharacters is passed through verbatim =="
+if [[ ! -x "${metachar_launcher}" ]]; then
+  fail "${metachar_launcher} is not an executable file; the sh_test's data is wrong"
+elif output="$(RUNFILES_DIR="${srcdir}" "${metachar_launcher}" --dry-run 2>&1)"; then
+  if ! grep -Fq "PUT ${METACHARACTER_REPOSITORY}/com/github/bpalermo/clj-grpc/0.1.4/" <<<"${output}"; then
+    fail "the repository did not survive as itself. Expected a PUT under
+  ${METACHARACTER_REPOSITORY}
+Output was:
+${output}"
+  fi
+  # If bash had expanded them, `echo boom` and `echo bang` would have left their output
+  # as path segments. Naming the results rather than the inputs keeps this unambiguous:
+  # "boom" is a substring of "$(echo boom)", but "/boom/" is not.
+  if grep -Fq "/boom/" <<<"${output}"; then
+    fail "\$(echo boom) was executed by the launcher. Output was:
+${output}"
+  fi
+  if grep -Fq "/bang/" <<<"${output}"; then
+    fail "\`echo bang\` was executed by the launcher. Output was:
+${output}"
+  fi
+else
+  fail "metacharacters: the launcher exited $?. Output was:
+${output}"
+fi
+
 if [[ "${failures}" -ne 0 ]]; then
   echo "${failures} case(s) failed" >&2
   exit 1
 fi
-echo "all four cases resolved the runfiles tree"
+echo "all four runfiles cases resolved, and the repository survived the shell"

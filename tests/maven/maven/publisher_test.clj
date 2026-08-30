@@ -163,17 +163,51 @@
       (is (.isFile (io/file root path "clj-grpc-0.1.4.jar"))
           "a %20 in the URL must land in the directory whose name has a space"))))
 
-(deftest a-file-repository-cannot-name-another-host
-  (testing "file://host/path is a path on someone else's machine, and copying a file is
-            not a thing that can put it there"
-    (let [{:keys [exit err]} (apply publish (artifact-args "file://elsewhere/repo"))]
-      (is (= 1 exit))
-      (is (str/includes? err "cannot name another host")))))
+;; --- a dry run that passes must mean something ------------------------------
+;;
+;; The whole value of --dry-run is that it is the same code path with the sending taken
+;; out. A check that lived in the upload step rather than in the planning step would let
+;; a rehearsal report success for a repository the real run cannot use — and this is the
+;; command people run precisely because the real one cannot be taken back.
 
-(deftest a-relative-file-repository-is-refused
-  (let [{:keys [exit err]} (apply publish (artifact-args "file:relative/repo"))]
-    (is (= 1 exit))
-    (is (str/includes? err "must be an absolute path"))))
+(def ^:private unusable-repositories
+  [["file:relative/repo" "must be an absolute path"]
+   ["file://elsewhere/repo" "cannot name another host"]
+   ["clojars.org/repo" "needs a scheme"]
+   ["ftp://clojars.org/repo" "must be http, https or file:"]
+   ["https://clojars .org/repo" "not a usable repository URL"]])
+
+(deftest an-unusable-repository-is-refused
+  (doseq [[repository fragment] unusable-repositories]
+    (testing repository
+      (let [{:keys [exit err]} (apply publish (artifact-args repository))]
+        (is (= 1 exit))
+        (is (str/includes? err fragment) err)))))
+
+(deftest a-dry-run-fails-wherever-the-real-run-would
+  (doseq [[repository fragment] unusable-repositories]
+    (testing (str repository " under --dry-run")
+      (let [dry (apply publish "--dry-run" (artifact-args repository))
+            real (apply publish (artifact-args repository))]
+        (is (= 1 (:exit dry))
+            (str "--dry-run reported success for a repository the real run refuses:\n"
+                 (:out dry)))
+        (is (= (:exit real) (:exit dry)) "the two runs must agree")
+        (is (str/includes? (:err dry) fragment) (:err dry))))))
+
+(deftest coordinates-that-cannot-make-a-url-are-caught-while-planning
+  (testing "the URLs are built from a coordinates file, so a legal repository does not
+            make them legal — and the alternative to catching it here is URI.create
+            throwing at the moment of the first PUT, half way through a release"
+    (let [coordinates (io/file (temp-dir "publisher-coords") "coordinates.txt")
+          _ (spit coordinates "com.example:lib:1.0 SNAPSHOT\n")
+          {:keys [exit err]} (publish "--repository=https://clojars.org/repo"
+                                      (str "--coordinates=" coordinates)
+                                      (str "--pom=" (runfile "GENERATED_POM"))
+                                      (str "--jar=" (runfile "GENERATED_JAR"))
+                                      "--dry-run")]
+      (is (= 1 exit))
+      (is (str/includes? err "do not make a usable URL") err))))
 
 (deftest a-missing-artifact-is-reported-before-anything-is-sent
   (let [{:keys [exit err]} (publish "--repository=https://clojars.org/repo"
