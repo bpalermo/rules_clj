@@ -136,6 +136,45 @@
                (slurp (io/file directory (str artifact extension))))
             (str artifact extension))))))
 
+;; A `file:` repository is the one argument whose value is a filesystem path, and
+;; filesystem paths contain spaces — ~/Library/Application Support, or any Windows-shaped
+;; habit brought to a mac. Both spellings of such a path have to work, and have to agree.
+
+(defn- repository-with-a-space
+  "A directory whose name contains a space, inside a fresh temp directory."
+  []
+  (doto (io/file (temp-dir "publisher-repo") "my repository") (.mkdirs)))
+
+(deftest a-file-repository-path-may-contain-a-space
+  (testing "the literal spelling, which is what a person types and is not a legal URI"
+    (let [root (repository-with-a-space)
+          {:keys [exit out err]} (apply publish (artifact-args (str "file://" root)))]
+      (is (zero? exit) (str out err))
+      (is (.isFile (io/file root path "clj-grpc-0.1.4.jar")))
+      (is (.isFile (io/file root path "clj-grpc-0.1.4.pom.sha256"))))))
+
+(deftest a-percent-encoded-file-repository-names-the-same-directory
+  (testing "the well-formed spelling of the same path — the two readings must agree, which
+            is the property that lets one fall back to the other"
+    (let [root (repository-with-a-space)
+          encoded (str "file://" (str/replace (str root) " " "%20"))
+          {:keys [exit out err]} (apply publish (artifact-args encoded))]
+      (is (zero? exit) (str out err))
+      (is (.isFile (io/file root path "clj-grpc-0.1.4.jar"))
+          "a %20 in the URL must land in the directory whose name has a space"))))
+
+(deftest a-file-repository-cannot-name-another-host
+  (testing "file://host/path is a path on someone else's machine, and copying a file is
+            not a thing that can put it there"
+    (let [{:keys [exit err]} (apply publish (artifact-args "file://elsewhere/repo"))]
+      (is (= 1 exit))
+      (is (str/includes? err "cannot name another host")))))
+
+(deftest a-relative-file-repository-is-refused
+  (let [{:keys [exit err]} (apply publish (artifact-args "file:relative/repo"))]
+    (is (= 1 exit))
+    (is (str/includes? err "must be an absolute path"))))
+
 (deftest a-missing-artifact-is-reported-before-anything-is-sent
   (let [{:keys [exit err]} (publish "--repository=https://clojars.org/repo"
                                     (str "--coordinates=" (runfile "GENERATED_COORDINATES"))

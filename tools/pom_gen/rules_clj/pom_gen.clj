@@ -207,7 +207,13 @@
                         [(keyword k) v]))
         {:keys [deps-edn version-edn group-id artifact-id
                 pom-out properties-out coordinates-out]} opts]
-    (when-not (and deps-edn version-edn group-id artifact-id pom-out)
+    ;; Every one of these is written or read unconditionally below, so all of them are
+    ;; required — including the two output paths that were once missing from this check.
+    ;; The rule always passes them, so the gap was invisible from a build and appeared
+    ;; only when someone ran the tool by hand, as a NullPointerException out of `spit`
+    ;; rather than as the usage line that would have told them what to add.
+    (when-not (and deps-edn version-edn group-id artifact-id
+                   pom-out properties-out coordinates-out)
       (fail (str "usage: --deps-edn=F --version-edn=F --group-id=G --artifact-id=A"
                  " --pom-out=F --properties-out=F --coordinates-out=F"
                  " [--description=..] [--url=..] [--scm-url=..]"

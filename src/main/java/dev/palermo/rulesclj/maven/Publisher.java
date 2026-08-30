@@ -8,7 +8,9 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.FileSystemNotFoundException;
 import java.nio.file.Files;
+import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.security.MessageDigest;
@@ -54,6 +56,9 @@ public final class Publisher {
      * which reads like a broken tool rather than a wrong URL.
      */
     static final String DEFAULT_REPOSITORY = "https://clojars.org/repo";
+
+    /** The scheme that means "install into a directory on this machine" rather than "upload". */
+    private static final String FILE_SCHEME = "file:";
 
     /**
      * Checksums to write beside each artifact.
@@ -154,7 +159,7 @@ public final class Publisher {
 
     private static int upload(Args parsed, List<Upload> uploads, PrintStream out, PrintStream err)
             throws Exception {
-        if (parsed.repository.startsWith("file:")) {
+        if (parsed.repository.regionMatches(true, 0, FILE_SCHEME, 0, FILE_SCHEME.length())) {
             Path root = filePath(parsed.repository);
             for (Upload upload : uploads) {
                 Path destination = root.resolve(relativeTo(parsed.repository, upload.url));
@@ -258,21 +263,62 @@ public final class Publisher {
     /**
      * Resolves a {@code file:} repository URL to a local directory.
      *
-     * <p>Both {@code file:///abs/path} and the abbreviated {@code file:/abs/path} appear in the
-     * wild — the second is what a person types — so the URI is normalised rather than trusted.
+     * <p>Two spellings are both common and both meant: {@code file:///abs/path}, which is the
+     * well-formed URL, and the abbreviated {@code file:/abs/path}, which is what a person types.
+     * Neither is reliably a legal URI, because the thing on the end is a filesystem path and
+     * filesystem paths contain spaces. So this tries the strict reading first and falls back to
+     * the literal one, rather than assembling a URI out of string pieces and hoping:
+     *
+     * <ul>
+     *   <li><b>A parseable {@code file:} URI</b> is handed to {@code Paths.get(URI)}, which is
+     *       the only thing here that knows how to percent-decode — so {@code file:///tmp/a%20b}
+     *       resolves to the directory {@code /tmp/a b}, as a URL should.
+     *   <li><b>Anything else</b> is treated as a literal path after the scheme and any empty or
+     *       {@code localhost} authority. {@code file:///home/me/my repository} is not a legal
+     *       URI and is not remotely ambiguous; refusing it would be pedantry with a stack trace.
+     * </ul>
+     *
+     * <p>Both readings agree wherever both apply, which is what makes the fallback safe.
      */
     static Path filePath(String repository) throws PublishException {
-        String path = stripTrailingSlash(repository).substring("file:".length());
-        while (path.startsWith("//")) {
-            path = path.substring(1);
+        String stripped = stripTrailingSlash(repository);
+        if (!stripped.regionMatches(true, 0, FILE_SCHEME, 0, FILE_SCHEME.length())) {
+            throw new PublishException("not a file: repository: " + repository);
+        }
+
+        try {
+            URI uri = new URI(stripped);
+            if (uri.getPath() != null && !uri.getPath().isEmpty()) {
+                return Paths.get(uri);
+            }
+        } catch (URISyntaxException | IllegalArgumentException | FileSystemNotFoundException e) {
+            // Not a URI, or a URI this filesystem will not take — an unencoded space reaches
+            // here, and so does a remote authority. The literal reading below handles the
+            // first and rejects the second with something to say.
+        }
+
+        String path = stripped.substring(FILE_SCHEME.length());
+        if (path.startsWith("//")) {
+            // file://<authority>/path. Only an empty authority or localhost names THIS
+            // machine, and a copy cannot install to another one.
+            int slash = path.indexOf('/', 2);
+            String authority = slash < 0 ? path.substring(2) : path.substring(2, slash);
+            if (!authority.isEmpty() && !authority.equalsIgnoreCase("localhost")) {
+                throw new PublishException(
+                        "a file: repository cannot name another host ("
+                                + authority
+                                + "): "
+                                + repository);
+            }
+            path = slash < 0 ? "" : path.substring(slash);
         }
         if (!path.startsWith("/")) {
             throw new PublishException(
                     "a file: repository must be an absolute path, got: " + repository);
         }
         try {
-            return Paths.get(new URI("file://" + path));
-        } catch (URISyntaxException e) {
+            return Paths.get(path);
+        } catch (InvalidPathException e) {
             throw new PublishException("not a usable file: URL: " + repository);
         }
     }
