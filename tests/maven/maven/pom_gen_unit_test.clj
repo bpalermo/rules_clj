@@ -115,6 +115,31 @@
             extra))
     (into {} (for [[k path] outputs] [k (io/file path)]))))
 
+(deftest a-coordinate-that-could-not-be-published-is-refused-at-build-time
+  (testing "the three components become directory names in a repository and path segments
+            in an upload URL. The publisher refuses these too, but a check that lives only
+            there fires at release time, on a pom and a jar the build already called fine —
+            so it is checked here, where CI runs, months before anyone cuts a release"
+    (doseq [[what extra]
+            [["group id" {:group-id "../../evil"}]
+             ["group id" {:group-id ".."}]
+             ["group id" {:group-id ""}]
+             ["artifact id" {:artifact-id "a/b"}]
+             ["artifact id" {:artifact-id "../out"}]
+             ["version" {:version-edn (file-holding "version.edn" "{:version \"1.0 SNAPSHOT\"}")}]
+             ["version" {:version-edn (file-holding "version.edn" "{:version \"../../../x\"}")}]
+             ["version" {:version-edn (file-holding "version.edn" "{:version \"/tmp/abs\"}")}]]]
+      (let [message (str (refusal #(write-fixture! extra)))]
+        (is (str/includes? message (str "the " what " is not a usable coordinate"))
+            (str extra " => " message))))))
+
+(deftest a-dependency-version-may-be-a-maven-range
+  (testing "a dependency's version is not a path segment of ours, so the coordinate rule
+            must not reach it: [1.0,2.0) is a legal thing to ask a resolver for"
+    (let [deps (file-holding "deps.edn" "{:deps {a/b {:mvn/version \"[1.0,2.0)\"}}}")
+          {:keys [pom-out]} (write-fixture! {:deps-edn deps})]
+      (is (str/includes? (slurp pom-out) "<version>[1.0,2.0)</version>")))))
+
 (deftest every-generated-file-is-utf-8
   (testing "a pom declares encoding=\"UTF-8\" in its first line, so its bytes must be
             UTF-8 whatever charset the machine that ran the action happens to prefer.

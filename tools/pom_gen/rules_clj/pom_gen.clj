@@ -52,6 +52,36 @@
   reproducible action output the rest of this ruleset promises."
   "UTF-8")
 
+(def ^:private coordinate
+  "The characters a group id, artifact id or version may hold.
+
+  What Maven coordinates actually use, and no more. These three strings become directory
+  names in a repository and path segments in an upload URL, so one holding a separator or
+  a `..` names a place other than the artifact's own."
+  #"[A-Za-z0-9_+-][A-Za-z0-9._+-]*")
+
+(defn- check-coordinate
+  "Refuses a coordinate component that could not be published, during the BUILD.
+
+  The publisher refuses these too, and has to: it is the thing that writes, so it cannot
+  rely on having been handed good input. But a check that lives only there fires at
+  release time, on the one artifact whose coordinates were already baked into a pom and a
+  jar that `bazel build` reported as fine — which is precisely the boundary this rule
+  claims to hold. Checking here means a malformed coordinate fails in CI, months before
+  anyone tries to cut a release, rather than during one.
+
+  Dependency coordinates are deliberately NOT checked this way: a dependency's version may
+  legitimately be a Maven range such as `[1.0,2.0)`, which is not a path segment of ours
+  and not ours to refuse."
+  [what value]
+  (when-not (and (string? value)
+                 (re-matches coordinate value)
+                 (not (str/includes? value "..")))
+    (fail (str "the " what " is not a usable coordinate: " (pr-str value)
+               ". A coordinate may hold letters, digits, '.', '_', '+' and '-', may not"
+               " begin with a '.' and may not contain '..', because it becomes a directory"
+               " name and a URL path segment."))))
+
 ;; --- reading the project ----------------------------------------------------
 
 (defn read-version
@@ -258,7 +288,10 @@
     (when-not (and deps-edn version-edn group-id artifact-id
                    pom-out properties-out coordinates-out)
       (fail usage))
+    (check-coordinate "group id" group-id)
+    (check-coordinate "artifact id" artifact-id)
     (let [version (read-version version-edn)]
+      (check-coordinate "version" version)
       (spit pom-out
             (pom (assoc opts :version version :deps (dependencies deps-edn)))
             :encoding utf-8)
