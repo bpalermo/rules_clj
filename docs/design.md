@@ -336,8 +336,9 @@ Three consequences follow, and each is visible in the API:
   really deployed to Clojars, whose fourteen hand-pinned Netty artifacts are exactly that case.
 
 The publisher is JDK-only, like the compiler shim, for the same reason: a ruleset that needs a
-dependency resolver to build itself makes every consumer pay for it, and three HTTP PUTs per
-artifact — the file, its md5 and its sha1, so six for a release — do not need Aether.
+dependency resolver to build itself makes every consumer pay for it, and nine HTTP PUTs for a
+release — a jar and a pom with their md5 and sha1, then the version list with its own — do not
+need Aether.
 
 The checksum set is md5 and sha1 because that is what a repository accepts, not because
 stronger ones would cost anything to compute. It defaulted to sha256 and sha512 as well,
@@ -347,6 +348,17 @@ Clojars answers a `.sha256` upload with 400, and does so *after* accepting the j
 release fails half way through rather than at the start. `--checksums` opts into the
 stronger pair for a repository that takes them, which Maven Central does. Nothing short of
 a real upload could have found this: a dry run does not ask the repository anything.
+
+The **version list is the deploy's completion signal**, and sending it is not optional. This
+publisher first declined to write `maven-metadata.xml` at all, reasoning that a release version
+does not need one because the repository derives its own. Clojars does not: it treats the
+metadata upload as the signal that a deploy has finished, so without it every artifact `PUT` is
+answered `201` and the version still never appears — no error, no artifact. Two releases were
+lost that way before the cause was clear. It is uploaded last, and **merged** into whatever the
+repository already holds rather than written fresh, because that one file is the artifact's
+entire history: a publish that replaced it would finish the deploy and un-list every earlier
+release in the same breath. A metadata document that cannot be parsed stops the publish instead
+of being overwritten.
 
 ## Non-goals
 

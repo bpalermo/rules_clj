@@ -89,10 +89,11 @@
               extension extensions]
         (let [url (str "https://clojars.org/repo/" path "/" artifact extension)]
           (is (str/includes? out (str "PUT " url " ")) (str "missing " url)))))
-    (testing "six files and no more — a count is what catches an extra artifact"
-      (is (= 6 (count (filter #(str/starts-with? % "PUT ") (str/split-lines out))))))
+    (testing "nine files and no more — the jar and pom with their checksums, then the
+              version list with its own: a count is what catches an extra artifact"
+      (is (= 9 (count (filter #(str/starts-with? % "PUT ") (str/split-lines out))))))
     (testing "and it says plainly that it sent nothing"
-      (is (str/includes? out "6 files would be uploaded; nothing was sent.")))))
+      (is (str/includes? out "9 files would be uploaded; nothing was sent.")))))
 
 (deftest the-jar-is-planned-before-the-pom
   (testing "a repository that indexes on seeing a pom must not see one whose jar is
@@ -115,7 +116,7 @@
         {:keys [exit out err]} (apply publish (artifact-args (str "file://" root)))
         directory (io/file root path)]
     (is (zero? exit) (str out err))
-    (is (str/includes? out (str "installed 6 files into " root)))
+    (is (str/includes? out (str "installed 9 files into " root)))
 
     (testing "the artifacts land at {group as path}/{artifact}/{version}/"
       (doseq [artifact ["clj-grpc-0.1.4.jar" "clj-grpc-0.1.4.pom"]
@@ -206,7 +207,7 @@
                         "http://[::1]:8081/repo"]]
       (let [{:keys [exit out]} (apply publish "--dry-run" (artifact-args repository))]
         (is (zero? exit) (str repository " should be allowed"))
-        (is (str/includes? out "6 files would be uploaded") repository)))))
+        (is (str/includes? out "9 files would be uploaded") repository)))))
 
 (deftest an-unusable-repository-is-refused
   (doseq [[repository fragment] unusable-repositories]
@@ -286,13 +287,13 @@
             400 — and does it after accepting the jar, so a stronger default fails a
             release half way through rather than at the start of one"
     (let [{:keys [out]} (apply publish "--dry-run" (artifact-args "https://clojars.org/repo"))]
-      (is (= 6 (count (filter #(str/starts-with? % "PUT ") (str/split-lines out)))))
+      (is (= 9 (count (filter #(str/starts-with? % "PUT ") (str/split-lines out)))))
       (is (not (str/includes? out ".sha256")) "sha256 is not sent unless asked for")))
 
   (testing "a repository that takes the strong pair can ask for it — Maven Central does"
     (let [{:keys [out]} (apply publish "--dry-run" "--checksums=md5,sha1,sha256,sha512"
                                (artifact-args "https://repo.example.com/repo"))]
-      (is (= 10 (count (filter #(str/starts-with? % "PUT ") (str/split-lines out)))))
+      (is (= 15 (count (filter #(str/starts-with? % "PUT ") (str/split-lines out)))))
       (is (str/includes? out ".sha512"))))
 
   (testing "written in a fixed order however they are listed, so two runs of the same
@@ -308,7 +309,7 @@
   (testing "the file alone, which --checksums= is the only way to say"
     (let [{:keys [out]} (apply publish "--dry-run" "--checksums="
                                (artifact-args "https://repo.example.com/repo"))]
-      (is (= 2 (count (filter #(str/starts-with? % "PUT ") (str/split-lines out)))))))
+      (is (= 3 (count (filter #(str/starts-with? % "PUT ") (str/split-lines out)))))))
 
   (testing "a name this cannot compute is refused rather than dropped: a silently skipped
             checksum is found by whoever verifies the artifact, not by whoever published it"
@@ -317,6 +318,62 @@
       (is (= 2 exit))
       (is (str/includes? err "unknown checksum 'sha3'") err)
       (is (str/includes? err "md5, sha1, sha256, sha512") err))))
+
+(defn- install-version
+  "Installs the built jar and pom into `root` under a fabricated version."
+  [root version]
+  (let [coordinates (io/file (temp-dir "publisher-coords") "coordinates.txt")]
+    (spit coordinates (str "com.github.bpalermo:clj-grpc:" version "\n"))
+    (publish (str "--repository=file://" root)
+             (str "--coordinates=" coordinates)
+             (str "--pom=" (runfile "GENERATED_POM"))
+             (str "--jar=" (runfile "GENERATED_JAR")))))
+
+(deftest the-version-list-is-added-to-rather-than-replaced
+  (testing "maven-metadata.xml IS the artifact's history, and a repository treats its
+            upload as the signal that a deploy finished — so a publish that wrote it fresh
+            would finish the deploy and un-list every earlier release in the same breath"
+    (let [root (temp-dir "publisher-repo")
+          metadata (io/file root "com/github/bpalermo/clj-grpc/maven-metadata.xml")]
+
+      (testing "the first release writes a list with one version in it"
+        (is (zero? (:exit (install-version root "0.1.4"))))
+        (is (.isFile metadata))
+        (let [xml (slurp metadata)]
+          (is (str/includes? xml "<version>0.1.4</version>"))
+          (is (str/includes? xml "<release>0.1.4</release>"))
+          (is (= 1 (count (re-seq #"<version>" xml))))))
+
+      (testing "the second keeps the first and marks itself the release"
+        (is (zero? (:exit (install-version root "0.2.0"))))
+        (let [xml (slurp metadata)]
+          (is (str/includes? xml "<version>0.1.4</version>") "the earlier version survived")
+          (is (str/includes? xml "<version>0.2.0</version>"))
+          (is (str/includes? xml "<release>0.2.0</release>"))
+          (testing "in the order the repository had, with this appended"
+            (is (< (str/index-of xml "<version>0.1.4<")
+                   (str/index-of xml "<version>0.2.0<"))))))
+
+      (testing "and installing a version it already lists does not list it twice"
+        (is (zero? (:exit (install-version root "0.2.0"))))
+        (is (= 1 (count (re-seq #"<version>0\.2\.0</version>" (slurp metadata))))))
+
+      (testing "the checksums are written beside it, like any other file"
+        (doseq [extension [".md5" ".sha1"]]
+          (is (.isFile (io/file (str metadata extension)))))))))
+
+(deftest a-version-list-that-cannot-be-read-is-refused-rather-than-replaced
+  (testing "silently writing a list with the past missing is the one outcome worse than
+            failing the deploy — so an unreadable document stops it"
+    (let [root (temp-dir "publisher-repo")
+          metadata (io/file root "com/github/bpalermo/clj-grpc/maven-metadata.xml")]
+      (io/make-parents metadata)
+      (spit metadata "<html>a proxy's error page, served with a 200</html>")
+      (let [{:keys [exit err]} (install-version root "0.1.4")]
+        (is (= 1 exit))
+        (is (str/includes? err "no <version> could be read") err)
+        (testing "and it left the file alone"
+          (is (str/includes? (slurp metadata) "proxy's error page")))))))
 
 (deftest a-missing-artifact-is-reported-before-anything-is-sent
   (let [{:keys [exit err]} (publish "--repository=https://clojars.org/repo"
