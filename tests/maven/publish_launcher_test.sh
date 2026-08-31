@@ -56,7 +56,7 @@ bare() {
     -u JAVA_RUNFILES -u TEST_SRCDIR "$@"
 }
 
-# Every case must print the same plan: six files, the jar first, nothing sent.
+# Every case must print the same plan: nine files, the jar first, nothing sent.
 expect_dry_run_plan() {
   local case_name="$1" output="$2"
   local base="https://clojars.org/repo/com/github/bpalermo/clj-grpc/0.1.4"
@@ -71,7 +71,7 @@ ${output}"
 ${output}"
     return
   fi
-  if ! grep -Fq "6 files would be uploaded; nothing was sent." <<<"${output}"; then
+  if ! grep -Fq "9 files would be uploaded; nothing was sent." <<<"${output}"; then
     fail "${case_name}: the run did not end with the dry-run summary. Output was:
 ${output}"
   fi

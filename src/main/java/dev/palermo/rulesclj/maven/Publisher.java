@@ -16,6 +16,9 @@ import java.nio.file.Paths;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Duration;
+import java.time.Instant;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.LinkedHashMap;
@@ -46,9 +49,6 @@ import java.util.regex.Pattern;
  * <ul>
  *   <li><b>No GPG.</b> Clojars does not require signatures and Maven Central's requirements go
  *       well beyond a signature; a half-implemented signing story is worse than an absent one.
- *   <li><b>No {@code maven-metadata.xml}.</b> Release versions do not need it — the repository
- *       derives its own — and writing a wrong one is how a repository ends up claiming versions
- *       that were never published.
  *   <li><b>No redirects.</b> A 3xx on an upload is reported rather than followed: the response
  *       that moves an authenticated PUT elsewhere is exactly the one worth looking at by hand.
  * </ul>
@@ -115,7 +115,19 @@ public final class Publisher {
                 for (Upload upload : uploads) {
                     out.printf("PUT %s (%d bytes)%n", upload.url, upload.content.length);
                 }
-                out.printf("%d files would be uploaded; nothing was sent.%n", uploads.size());
+                // Named but not sized, and deliberately: its content is the repository's current
+                // version list with this version added, and a dry run does not ask the repository
+                // anything. Saying "6 files" and then sending 8 would be the dry run lying about
+                // the shape of the deploy, which is the one thing it exists not to do.
+                Coordinates coordinates = Coordinates.read(parsed.coordinates);
+                String metadataUrl = metadataUrl(parsed.repository, coordinates);
+                out.printf("PUT %s (the version list, merged with the repository's)%n", metadataUrl);
+                for (String extension : parsed.checksums) {
+                    out.printf("PUT %s.%s%n", metadataUrl, extension);
+                }
+                out.printf(
+                        "%d files would be uploaded; nothing was sent.%n",
+                        uploads.size() + 1 + parsed.checksums.size());
                 return 0;
             }
             return upload(parsed, uploads, out, err);
@@ -287,6 +299,86 @@ public final class Publisher {
         }
     }
 
+    /** Matches one {@code <version>…</version>} entry in a maven-metadata.xml. */
+    private static final Pattern METADATA_VERSION =
+            Pattern.compile("<version>\\s*([^<\\s]+)\\s*</version>");
+
+    /**
+     * The repository's list of versions for this artifact, with {@code version} added.
+     *
+     * <p>This file is what tells a repository the deploy finished. Clojars treats the
+     * maven-metadata.xml upload as the completion signal: without it every artifact PUT is
+     * accepted with a 201 and the version still never appears, which is exactly what happened to
+     * clj-protobuf 0.1.7 and 0.1.8. The comment this replaced claimed release versions do not
+     * need one because the repository derives its own. They do, and it does not.
+     *
+     * <p>MERGED rather than written fresh, because the file is the whole artifact's history and a
+     * publish that replaced it would silently un-list every earlier release. {@code existing} is
+     * the repository's current copy, or null for an artifact's first ever release.
+     *
+     * @throws PublishException if an existing document is non-empty but no version can be read
+     *     out of it — better to refuse than to publish a version list with the past missing.
+     */
+    static String mergeMetadata(String existing, Coordinates coordinates, String lastUpdated)
+            throws PublishException {
+        List<String> versions = new ArrayList<>();
+        if (existing != null && !existing.isBlank()) {
+            Matcher found = METADATA_VERSION.matcher(existing);
+            while (found.find()) {
+                versions.add(found.group(1));
+            }
+            if (versions.isEmpty()) {
+                throw new PublishException(
+                        "the repository has a maven-metadata.xml for this artifact but no"
+                            + " <version> could be read from it. Refusing to replace it, because"
+                            + " the replacement would drop every version it lists. Look at it by"
+                            + " hand:\n"
+                            + existing);
+            }
+        }
+        if (!versions.contains(coordinates.version)) {
+            versions.add(coordinates.version);
+        }
+
+        StringBuilder xml = new StringBuilder();
+        xml.append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n")
+                .append("<metadata>\n")
+                .append("  <groupId>").append(coordinates.groupId).append("</groupId>\n")
+                .append("  <artifactId>")
+                .append(coordinates.artifactId)
+                .append("</artifactId>\n")
+                .append("  <versioning>\n")
+                // The version being published is the release, which is what it means to publish
+                // one. Order is the order the repository already had, with this appended.
+                .append("    <release>").append(coordinates.version).append("</release>\n")
+                .append("    <versions>\n");
+        for (String version : versions) {
+            xml.append("      <version>").append(version).append("</version>\n");
+        }
+        xml.append("    </versions>\n")
+                .append("    <lastUpdated>").append(lastUpdated).append("</lastUpdated>\n")
+                .append("  </versioning>\n")
+                .append("</metadata>\n");
+        return xml.toString();
+    }
+
+    /** The UTC stamp Maven writes into {@code <lastUpdated>}. */
+    private static String metadataTimestamp() {
+        return DateTimeFormatter.ofPattern("yyyyMMddHHmmss")
+                .withZone(ZoneOffset.UTC)
+                .format(Instant.now());
+    }
+
+    /** Where the artifact's version list lives, which is one directory above the version. */
+    static String metadataUrl(String repository, Coordinates coordinates) {
+        return stripTrailingSlash(repository)
+                + "/"
+                + coordinates.groupId.replace('.', '/')
+                + "/"
+                + coordinates.artifactId
+                + "/maven-metadata.xml";
+    }
+
     private static int upload(Args parsed, List<Upload> uploads, PrintStream out, PrintStream err)
             throws Exception {
         if (isFileRepository(parsed.repository)) {
@@ -309,7 +401,28 @@ public final class Publisher {
                 Files.write(destination, upload.content);
                 out.println("wrote " + destination);
             }
-            out.printf("installed %d files into %s%n", uploads.size(), root);
+            // The version list, last and merged, for the same reason as over HTTP: a local
+            // install is meant to look like what a repository would hold.
+            Coordinates coordinates = Coordinates.read(parsed.coordinates);
+            Path metadata =
+                    root.resolve(relativeTo(parsed.repository,
+                                    metadataUrl(parsed.repository, coordinates)))
+                            .normalize();
+            String existing = Files.isRegularFile(metadata) ? Files.readString(metadata, StandardCharsets.UTF_8) : null;
+            byte[] merged =
+                    mergeMetadata(existing, coordinates, metadataTimestamp())
+                            .getBytes(StandardCharsets.UTF_8);
+            Files.createDirectories(metadata.getParent());
+            Files.write(metadata, merged);
+            out.println("wrote " + metadata);
+            for (String extension : parsed.checksums) {
+                Path sibling = metadata.resolveSibling(metadata.getFileName() + "." + extension);
+                Files.write(sibling, hex(digest(CHECKSUMS.get(extension), merged)));
+                out.println("wrote " + sibling);
+            }
+            out.printf(
+                    "installed %d files into %s%n",
+                    uploads.size() + 1 + parsed.checksums.size(), root);
             return 0;
         }
 
@@ -336,16 +449,7 @@ public final class Publisher {
                         .build();
 
         for (Upload upload : uploads) {
-            HttpRequest request =
-                    HttpRequest.newBuilder(URI.create(upload.url))
-                            .header("Authorization", credentials.basic())
-                            .header("Content-Type", upload.contentType)
-                            .timeout(Duration.ofMinutes(5))
-                            .PUT(HttpRequest.BodyPublishers.ofByteArray(upload.content))
-                            .build();
-
-            HttpResponse<String> response =
-                    client.send(request, HttpResponse.BodyHandlers.ofString());
+            HttpResponse<String> response = put(client, upload, credentials);
             int status = response.statusCode();
             if (status >= 200 && status < 300) {
                 out.printf("PUT %s -> %d%n", upload.url, status);
@@ -355,8 +459,90 @@ public final class Publisher {
             return 1;
         }
 
-        out.printf("published %d files to %s%n", uploads.size(), parsed.repository);
+        // The deploy is not finished until the version list mentions the version. Clojars uses
+        // this upload as the signal that a deploy is COMPLETE: without it, every PUT above is
+        // answered 201 and the version still never appears anywhere. Last, and merged into
+        // whatever the repository already has, so it adds a version rather than replacing a
+        // history.
+        Coordinates coordinates = Coordinates.read(parsed.coordinates);
+        String metadataUrl = metadataUrl(parsed.repository, coordinates);
+        String existing = fetch(client, metadataUrl, credentials);
+        byte[] metadata =
+                mergeMetadata(existing, coordinates, metadataTimestamp())
+                        .getBytes(StandardCharsets.UTF_8);
+
+        List<Upload> finishing = new ArrayList<>();
+        finishing.add(new Upload(metadataUrl, metadata, "text/xml"));
+        for (String extension : parsed.checksums) {
+            finishing.add(
+                    new Upload(
+                            metadataUrl + "." + extension,
+                            hex(digest(CHECKSUMS.get(extension), metadata)),
+                            "text/plain"));
+        }
+        for (Upload upload : finishing) {
+            HttpResponse<String> response = put(client, upload, credentials);
+            int status = response.statusCode();
+            if (status < 200 || status >= 300) {
+                err.println(explain(status, upload.url, response));
+                err.println(
+                        "publisher: the artifacts uploaded but the version list did not, so the"
+                            + " repository may never show this version. Look at "
+                            + metadataUrl);
+                return 1;
+            }
+            out.printf("PUT %s -> %d%n", upload.url, status);
+        }
+
+        out.printf(
+                "published %d files to %s%n",
+                uploads.size() + finishing.size(), parsed.repository);
         return 0;
+    }
+
+    private static HttpResponse<String> put(HttpClient client, Upload upload, Credentials credentials)
+            throws Exception {
+        HttpRequest request =
+                HttpRequest.newBuilder(URI.create(upload.url))
+                        .header("Authorization", credentials.basic())
+                        .header("Content-Type", upload.contentType)
+                        .timeout(Duration.ofMinutes(5))
+                        .PUT(HttpRequest.BodyPublishers.ofByteArray(upload.content))
+                        .build();
+        return client.send(request, HttpResponse.BodyHandlers.ofString());
+    }
+
+    /**
+     * The repository's current copy of a file, or null if it has none.
+     *
+     * <p>Only the version list is read this way, and only so it can be added to rather than
+     * replaced. A 404 is the ordinary answer for an artifact's first release and is not an error;
+     * anything else that is not a 2xx is, because publishing on top of a version list this could
+     * not read would drop the versions it holds.
+     */
+    private static String fetch(HttpClient client, String url, Credentials credentials)
+            throws Exception {
+        HttpRequest request =
+                HttpRequest.newBuilder(URI.create(url))
+                        .header("Authorization", credentials.basic())
+                        .timeout(Duration.ofMinutes(1))
+                        .GET()
+                        .build();
+        HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+        int status = response.statusCode();
+        if (status == 404) {
+            return null;
+        }
+        if (status < 200 || status >= 300) {
+            throw new PublishException(
+                    "could not read the repository\'s version list at "
+                            + url
+                            + " (HTTP "
+                            + status
+                            + "). Publishing on top of a list this cannot read would drop the"
+                            + " versions it holds, so nothing was sent.");
+        }
+        return response.body();
     }
 
     /**
