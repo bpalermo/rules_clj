@@ -20,6 +20,7 @@ import java.util.ArrayList;
 import java.util.Base64;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.function.UnaryOperator;
 import java.util.regex.Matcher;
@@ -30,9 +31,9 @@ import java.util.regex.Pattern;
  *
  * <p>Depends on nothing but the JDK, for the same reason the compiler shim does: rules_clj is a
  * ruleset before it is a program, and a ruleset that needs a dependency resolver in order to be
- * built is one every consumer pays for. A deploy is five HTTP PUTs per artifact — the file
- * itself and its four checksums, so ten for a jar and its pom — and the whole of Aether is not
- * required to make them.
+ * built is one every consumer pays for. A deploy is a PUT per artifact and one per checksum
+ * beside it — three for a jar by default, six for a jar and its pom — and the whole of Aether is
+ * not required to make them.
  *
  * <p>The layout below is simply Maven's, so any tool that speaks it agrees on where a file goes:
  * {@code {repository}/{group with dots as slashes}/{artifact}/{version}/{artifact}-{version}.{ext}}
@@ -64,19 +65,27 @@ public final class Publisher {
     /** The scheme that means "install into a directory on this machine" rather than "upload". */
     private static final String FILE_SCHEME = "file:";
 
-    /**
-     * Checksums to write beside each artifact.
-     *
-     * <p>md5 and sha1 because every repository and every client still expects them; sha256 and
-     * sha512 because they are what anyone actually verifying an artifact today would use. They are
-     * cheap — the file is already in memory — so publishing the weak pair alone would be a choice
-     * to be less useful for no saving.
-     */
+    /** Checksum extension to {@link MessageDigest} algorithm, for every kind this can write. */
     private static final Map<String, String> CHECKSUMS =
             Map.of("md5", "MD5", "sha1", "SHA-1", "sha256", "SHA-256", "sha512", "SHA-512");
 
     /** Checksum extensions in a fixed order, so output and uploads are reproducible. */
     private static final List<String> CHECKSUM_ORDER = List.of("md5", "sha1", "sha256", "sha512");
+
+    /**
+     * The checksums written beside each artifact unless {@code --checksums} says otherwise.
+     *
+     * <p>md5 and sha1 only, because that is what a repository actually accepts. This defaulted to
+     * all four on the reasoning that the digests are cheap and stronger ones are what anyone
+     * verifying an artifact today would use — which was true about the digests and wrong about the
+     * repositories. **Clojars answers a `.sha256` upload with 400**, and it does so after
+     * accepting the jar, so the failure arrives half way through a release rather than at the
+     * start of one. Maven Central does accept them, which is what {@code --checksums} is for.
+     *
+     * <p>The lesson is worth keeping with the code: this is not something a dry run could have
+     * caught, because a dry run does not ask the repository anything.
+     */
+    private static final List<String> DEFAULT_CHECKSUMS = List.of("md5", "sha1");
 
     public static void main(String[] args) {
         System.exit(run(args, System.out, System.err));
@@ -149,8 +158,8 @@ public final class Publisher {
         // The jar goes first and the pom last. A repository that indexes on seeing a pom then
         // never sees one whose jar is missing, which is the failure mode worth avoiding: a
         // half-published version is not something Clojars lets you take back.
-        addArtifact(uploads, base, stem + ".jar", parsed.jar);
-        addArtifact(uploads, base, stem + ".pom", parsed.pom);
+        addArtifact(uploads, base, stem + ".jar", parsed.jar, parsed.checksums);
+        addArtifact(uploads, base, stem + ".pom", parsed.pom, parsed.checksums);
 
         // The URLs were assembled from coordinates read out of a file, so the base being a
         // legal URI does not by itself make them ones. Coordinates.read has already refused
@@ -264,14 +273,15 @@ public final class Publisher {
         return Integer.parseInt(address.group(1)) == 127;
     }
 
-    private static void addArtifact(List<Upload> uploads, String base, String name, Path file)
+    private static void addArtifact(
+            List<Upload> uploads, String base, String name, Path file, List<String> checksums)
             throws IOException, PublishException {
         if (!Files.isRegularFile(file)) {
             throw new PublishException("not a file: " + file);
         }
         byte[] content = Files.readAllBytes(file);
         uploads.add(new Upload(base + name, content, "application/octet-stream"));
-        for (String extension : CHECKSUM_ORDER) {
+        for (String extension : checksums) {
             byte[] digest = hex(digest(CHECKSUMS.get(extension), content));
             uploads.add(new Upload(base + name + "." + extension, digest, "text/plain"));
         }
@@ -654,12 +664,13 @@ public final class Publisher {
     static final class Args {
         static final String USAGE =
                 "usage: Publisher --coordinates=FILE --pom=FILE --jar=FILE"
-                        + " [--repository=URL] [--dry-run]";
+                        + " [--repository=URL] [--checksums=md5,sha1] [--dry-run]";
 
         String repository = DEFAULT_REPOSITORY;
         Path coordinates;
         Path pom;
         Path jar;
+        List<String> checksums = DEFAULT_CHECKSUMS;
         boolean dryRun;
 
         static Args parse(String[] argv) {
@@ -682,6 +693,7 @@ public final class Publisher {
                     case "coordinates" -> args.coordinates = Paths.get(flag.getValue());
                     case "pom" -> args.pom = Paths.get(flag.getValue());
                     case "jar" -> args.jar = Paths.get(flag.getValue());
+                    case "checksums" -> args.checksums = checksums(flag.getValue());
                     default -> throw new IllegalArgumentException("unknown flag: --" + flag.getKey());
                 }
             }
@@ -689,6 +701,43 @@ public final class Publisher {
             require(args.pom, "--pom");
             require(args.jar, "--jar");
             return args;
+        }
+
+        /**
+         * Parses {@code --checksums=md5,sha1} into the extensions to write.
+         *
+         * <p>Refused rather than ignored when a name is not one this can compute: a silently
+         * dropped checksum is a repository that ends up without one, discovered by whoever tries
+         * to verify the artifact rather than by whoever published it. An empty list is allowed and
+         * means the file alone — {@code --checksums=} — which is the only way to say that.
+         */
+        private static List<String> checksums(String value) {
+            List<String> requested = new ArrayList<>();
+            for (String name : value.split(",")) {
+                String extension = name.strip().toLowerCase(Locale.ROOT);
+                if (extension.isEmpty()) {
+                    continue;
+                }
+                if (!CHECKSUMS.containsKey(extension)) {
+                    throw new IllegalArgumentException(
+                            "unknown checksum '"
+                                    + extension
+                                    + "'. Known: "
+                                    + String.join(", ", CHECKSUM_ORDER));
+                }
+                if (!requested.contains(extension)) {
+                    requested.add(extension);
+                }
+            }
+            // Written in a fixed order however they were listed, so two runs of the same publish
+            // plan the same uploads.
+            List<String> ordered = new ArrayList<>();
+            for (String extension : CHECKSUM_ORDER) {
+                if (requested.contains(extension)) {
+                    ordered.add(extension);
+                }
+            }
+            return ordered;
         }
 
         private static void require(Path value, String flag) {

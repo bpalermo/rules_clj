@@ -336,8 +336,17 @@ Three consequences follow, and each is visible in the API:
   really deployed to Clojars, whose fourteen hand-pinned Netty artifacts are exactly that case.
 
 The publisher is JDK-only, like the compiler shim, for the same reason: a ruleset that needs a
-dependency resolver to build itself makes every consumer pay for it, and five HTTP PUTs per
-artifact — the file and its four checksums, so ten for a release — do not need Aether.
+dependency resolver to build itself makes every consumer pay for it, and three HTTP PUTs per
+artifact — the file, its md5 and its sha1, so six for a release — do not need Aether.
+
+The checksum set is md5 and sha1 because that is what a repository accepts, not because
+stronger ones would cost anything to compute. It defaulted to sha256 and sha512 as well,
+on the reasoning that the digests are free and stronger ones are what anyone verifying an
+artifact would use — which was right about the digests and wrong about the repositories.
+Clojars answers a `.sha256` upload with 400, and does so *after* accepting the jar, so the
+release fails half way through rather than at the start. `--checksums` opts into the
+stronger pair for a repository that takes them, which Maven Central does. Nothing short of
+a real upload could have found this: a dry run does not ask the repository anything.
 
 ## Non-goals
 
