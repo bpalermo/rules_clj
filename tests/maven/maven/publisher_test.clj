@@ -70,8 +70,13 @@
   "com/github/bpalermo/clj-grpc/0.1.4")
 
 (def ^:private extensions
-  "The five files per artifact, in the order the publisher plans them."
-  ["" ".md5" ".sha1" ".sha256" ".sha512"])
+  "The three files per artifact, in the order the publisher plans them.
+
+  md5 and sha1 and no more, because that is what a repository accepts: Clojars answers
+  a .sha256 upload with 400, and does it AFTER accepting the jar, so asking for the
+  stronger pair by default fails a release half way through. --checksums opts in where
+  the repository takes them, which Maven Central does."
+  ["" ".md5" ".sha1"])
 
 ;; --- dry run ----------------------------------------------------------------
 
@@ -84,10 +89,10 @@
               extension extensions]
         (let [url (str "https://clojars.org/repo/" path "/" artifact extension)]
           (is (str/includes? out (str "PUT " url " ")) (str "missing " url)))))
-    (testing "ten files and no more — a count is what catches an extra artifact"
-      (is (= 10 (count (filter #(str/starts-with? % "PUT ") (str/split-lines out))))))
+    (testing "six files and no more — a count is what catches an extra artifact"
+      (is (= 6 (count (filter #(str/starts-with? % "PUT ") (str/split-lines out))))))
     (testing "and it says plainly that it sent nothing"
-      (is (str/includes? out "10 files would be uploaded; nothing was sent.")))))
+      (is (str/includes? out "6 files would be uploaded; nothing was sent.")))))
 
 (deftest the-jar-is-planned-before-the-pom
   (testing "a repository that indexes on seeing a pom must not see one whose jar is
@@ -110,7 +115,7 @@
         {:keys [exit out err]} (apply publish (artifact-args (str "file://" root)))
         directory (io/file root path)]
     (is (zero? exit) (str out err))
-    (is (str/includes? out (str "installed 10 files into " root)))
+    (is (str/includes? out (str "installed 6 files into " root)))
 
     (testing "the artifacts land at {group as path}/{artifact}/{version}/"
       (doseq [artifact ["clj-grpc-0.1.4.jar" "clj-grpc-0.1.4.pom"]
@@ -129,9 +134,7 @@
               so the test does not agree with the publisher by construction"
       (doseq [artifact ["clj-grpc-0.1.4.jar" "clj-grpc-0.1.4.pom"]
               [extension algorithm] [[".md5" "MD5"]
-                                     [".sha1" "SHA-1"]
-                                     [".sha256" "SHA-256"]
-                                     [".sha512" "SHA-512"]]]
+                                     [".sha1" "SHA-1"]]]
         (is (= (hex-digest algorithm (io/file directory artifact))
                (slurp (io/file directory (str artifact extension))))
             (str artifact extension))))))
@@ -151,7 +154,7 @@
           {:keys [exit out err]} (apply publish (artifact-args (str "file://" root)))]
       (is (zero? exit) (str out err))
       (is (.isFile (io/file root path "clj-grpc-0.1.4.jar")))
-      (is (.isFile (io/file root path "clj-grpc-0.1.4.pom.sha256"))))))
+      (is (.isFile (io/file root path "clj-grpc-0.1.4.pom.sha1"))))))
 
 (deftest a-percent-encoded-file-repository-names-the-same-directory
   (testing "the well-formed spelling of the same path — the two readings must agree, which
@@ -203,7 +206,7 @@
                         "http://[::1]:8081/repo"]]
       (let [{:keys [exit out]} (apply publish "--dry-run" (artifact-args repository))]
         (is (zero? exit) (str repository " should be allowed"))
-        (is (str/includes? out "10 files would be uploaded") repository)))))
+        (is (str/includes? out "6 files would be uploaded") repository)))))
 
 (deftest an-unusable-repository-is-refused
   (doseq [[repository fragment] unusable-repositories]
@@ -277,6 +280,43 @@
           (testing "and nothing was written anywhere under the repository or beside it"
             (is (empty? (filter #(.isFile ^java.io.File %) (file-seq parent)))
                 "a file was written despite the refusal")))))))
+
+(deftest checksums-are-what-the-repository-accepts-and-no-more
+  (testing "the default is md5 and sha1, because Clojars answers a .sha256 upload with
+            400 — and does it after accepting the jar, so a stronger default fails a
+            release half way through rather than at the start of one"
+    (let [{:keys [out]} (apply publish "--dry-run" (artifact-args "https://clojars.org/repo"))]
+      (is (= 6 (count (filter #(str/starts-with? % "PUT ") (str/split-lines out)))))
+      (is (not (str/includes? out ".sha256")) "sha256 is not sent unless asked for")))
+
+  (testing "a repository that takes the strong pair can ask for it — Maven Central does"
+    (let [{:keys [out]} (apply publish "--dry-run" "--checksums=md5,sha1,sha256,sha512"
+                               (artifact-args "https://repo.example.com/repo"))]
+      (is (= 10 (count (filter #(str/starts-with? % "PUT ") (str/split-lines out)))))
+      (is (str/includes? out ".sha512"))))
+
+  (testing "written in a fixed order however they are listed, so two runs of the same
+            publish plan the same uploads"
+    (let [order (fn [value]
+                  (->> (:out (apply publish "--dry-run" (str "--checksums=" value)
+                                    (artifact-args "https://repo.example.com/repo")))
+                       str/split-lines
+                       (keep #(second (re-find #"clj-grpc-0\.1\.4\.jar\.(\w+)" %)))))]
+      (is (= ["md5" "sha1" "sha256"] (order "sha256,md5,sha1")))
+      (is (= ["md5" "sha1" "sha256"] (order "sha1,sha256,md5")))))
+
+  (testing "the file alone, which --checksums= is the only way to say"
+    (let [{:keys [out]} (apply publish "--dry-run" "--checksums="
+                               (artifact-args "https://repo.example.com/repo"))]
+      (is (= 2 (count (filter #(str/starts-with? % "PUT ") (str/split-lines out)))))))
+
+  (testing "a name this cannot compute is refused rather than dropped: a silently skipped
+            checksum is found by whoever verifies the artifact, not by whoever published it"
+    (let [{:keys [exit err]} (apply publish "--checksums=md5,sha3"
+                                    (artifact-args "https://clojars.org/repo"))]
+      (is (= 2 exit))
+      (is (str/includes? err "unknown checksum 'sha3'") err)
+      (is (str/includes? err "md5, sha1, sha256, sha512") err))))
 
 (deftest a-missing-artifact-is-reported-before-anything-is-sent
   (let [{:keys [exit err]} (publish "--repository=https://clojars.org/repo"
