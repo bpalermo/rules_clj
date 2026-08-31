@@ -34,6 +34,11 @@ clj_maven_export(
         "Apache-2.0",
         "https://www.apache.org/licenses/LICENSE-2.0",
     ),
+    # A local repository, so the launcher test is hermetic: a dry run READS the version
+    # list, and a test that fetched Clojars to do it would depend on the network and on
+    # someone else's uptime. The default (Clojars) is a Starlark attribute default, which
+    # is visible in the rule and needs no round trip to assert.
+    repository = "file:///tmp/rules_clj-launcher-test-repo",
     scm_url = "https://github.com/bpalermo/clj-grpc",
     strip_prefix = "tests/maven/fixtures/src",
     url = "https://github.com/bpalermo/clj-grpc",

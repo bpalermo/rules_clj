@@ -347,7 +347,8 @@ artifact would use — which was right about the digests and wrong about the rep
 Clojars answers a `.sha256` upload with 400, and does so *after* accepting the jar, so the
 release fails half way through rather than at the start. `--checksums` opts into the
 stronger pair for a repository that takes them, which Maven Central does. Nothing short of
-a real upload could have found this: a dry run does not ask the repository anything.
+a real upload could have found this at the time: the dry run asked the repository nothing.
+It does now — see below.
 
 The **version list is the deploy's completion signal**, and sending it is not optional. This
 publisher first declined to write `maven-metadata.xml` at all, reasoning that a release version
@@ -359,6 +360,15 @@ repository already holds rather than written fresh, because that one file is the
 entire history: a publish that replaced it would finish the deploy and un-list every earlier
 release in the same breath. A metadata document that cannot be parsed stops the publish instead
 of being overwritten.
+
+**The dry run reads.** It used to touch nothing, on the view that a rehearsal should not go near
+the network — and that view is what let both failures above through, because each of them happens
+at a request, not in the plan. Reading is not mutating, so `--dry-run` now performs every read the
+real run performs, including fetching the version list, and writes nothing. That distinction is
+the honest line to draw: what a rehearsal cannot promise is that a write will be **accepted**, and
+it should not pretend otherwise. It caught the third failure itself — Clojars answers its own
+deploy endpoint with a 302 to the read mirror, and a publisher that would not follow a redirect on
+a read could not have read the list at all.
 
 ## Non-goals
 

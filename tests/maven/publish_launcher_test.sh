@@ -59,7 +59,7 @@ bare() {
 # Every case must print the same plan: nine files, the jar first, nothing sent.
 expect_dry_run_plan() {
   local case_name="$1" output="$2"
-  local base="https://clojars.org/repo/com/github/bpalermo/clj-grpc/0.1.4"
+  local base="file:///tmp/rules_clj-launcher-test-repo/com/github/bpalermo/clj-grpc/0.1.4"
 
   if ! grep -Fq "PUT ${base}/clj-grpc-0.1.4.jar (" <<<"${output}"; then
     fail "${case_name}: no PUT of the jar. Output was:
