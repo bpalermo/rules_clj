@@ -81,13 +81,17 @@
 ;; --- dry run ----------------------------------------------------------------
 
 (deftest dry-run-names-every-file-and-sends-none
-  (let [{:keys [exit out err]} (apply publish "--dry-run"
-                                      (artifact-args "https://clojars.org/repo"))]
+  ;; A file: repository, because a dry run now READS the repository's version list, and a
+  ;; test that reached Clojars to do it would be neither hermetic nor honest about what it
+  ;; proves. The layout asserted below is the one an upload uses too.
+  (let [root (temp-dir "publisher-repo")
+        base (str "file://" root)
+        {:keys [exit out err]} (apply publish "--dry-run" (artifact-args base))]
     (is (zero? exit) err)
-    (testing "the jar, the pom, and four checksum siblings for each"
+    (testing "the jar, the pom, and their checksum siblings"
       (doseq [artifact ["clj-grpc-0.1.4.jar" "clj-grpc-0.1.4.pom"]
               extension extensions]
-        (let [url (str "https://clojars.org/repo/" path "/" artifact extension)]
+        (let [url (str base "/" path "/" artifact extension)]
           (is (str/includes? out (str "PUT " url " ")) (str "missing " url)))))
     (testing "nine files and no more — the jar and pom with their checksums, then the
               version list with its own: a count is what catches an extra artifact"
@@ -99,7 +103,7 @@
   (testing "a repository that indexes on seeing a pom must not see one whose jar is
             missing: a half-published version is not something Clojars lets you undo"
     (let [{:keys [out]} (apply publish "--dry-run"
-                               (artifact-args "https://clojars.org/repo"))
+                               (artifact-args (str "file://" (temp-dir "publisher-repo"))))
           lines (filter #(str/starts-with? % "PUT ") (str/split-lines out))
           index (fn [suffix] (first (keep-indexed #(when (str/includes? %2 suffix) %1) lines)))]
       (is (< (index "clj-grpc-0.1.4.jar ") (index "clj-grpc-0.1.4.pom "))))))
@@ -201,13 +205,14 @@
       (is (str/includes? err "clear text") err)))
 
   (testing "loopback is the one place http cannot leak to, and is where a test repository
-            runs, so it stays allowed"
+            runs, so it stays allowed past the scheme check. Nothing listens on 8081, so the
+            run still fails — but on failing to REACH the repository, not on refusing to"
     (doseq [repository ["http://localhost:8081/repo"
                         "http://127.0.0.1:8081/repo"
                         "http://[::1]:8081/repo"]]
-      (let [{:keys [exit out]} (apply publish "--dry-run" (artifact-args repository))]
-        (is (zero? exit) (str repository " should be allowed"))
-        (is (str/includes? out "9 files would be uploaded") repository)))))
+      (let [{:keys [err]} (apply publish "--dry-run" (artifact-args repository))]
+        (is (not (str/includes? err "clear text"))
+            (str repository " was refused for being http, and should not have been"))))))
 
 (deftest an-unusable-repository-is-refused
   (doseq [[repository fragment] unusable-repositories]
@@ -286,13 +291,14 @@
   (testing "the default is md5 and sha1, because Clojars answers a .sha256 upload with
             400 — and does it after accepting the jar, so a stronger default fails a
             release half way through rather than at the start of one"
-    (let [{:keys [out]} (apply publish "--dry-run" (artifact-args "https://clojars.org/repo"))]
+    (let [{:keys [out]} (apply publish "--dry-run"
+                               (artifact-args (str "file://" (temp-dir "publisher-repo"))))]
       (is (= 9 (count (filter #(str/starts-with? % "PUT ") (str/split-lines out)))))
       (is (not (str/includes? out ".sha256")) "sha256 is not sent unless asked for")))
 
   (testing "a repository that takes the strong pair can ask for it — Maven Central does"
     (let [{:keys [out]} (apply publish "--dry-run" "--checksums=md5,sha1,sha256,sha512"
-                               (artifact-args "https://repo.example.com/repo"))]
+                               (artifact-args (str "file://" (temp-dir "publisher-repo"))))]
       (is (= 15 (count (filter #(str/starts-with? % "PUT ") (str/split-lines out)))))
       (is (str/includes? out ".sha512"))))
 
@@ -300,7 +306,7 @@
             publish plan the same uploads"
     (let [order (fn [value]
                   (->> (:out (apply publish "--dry-run" (str "--checksums=" value)
-                                    (artifact-args "https://repo.example.com/repo")))
+                                    (artifact-args (str "file://" (temp-dir "publisher-repo")))))
                        str/split-lines
                        (keep #(second (re-find #"clj-grpc-0\.1\.4\.jar\.(\w+)" %)))))]
       (is (= ["md5" "sha1" "sha256"] (order "sha256,md5,sha1")))
@@ -308,7 +314,7 @@
 
   (testing "the file alone, which --checksums= is the only way to say"
     (let [{:keys [out]} (apply publish "--dry-run" "--checksums="
-                               (artifact-args "https://repo.example.com/repo"))]
+                               (artifact-args (str "file://" (temp-dir "publisher-repo"))))]
       (is (= 3 (count (filter #(str/starts-with? % "PUT ") (str/split-lines out)))))))
 
   (testing "a name this cannot compute is refused rather than dropped: a silently skipped

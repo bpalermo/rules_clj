@@ -112,22 +112,21 @@ public final class Publisher {
         try {
             List<Upload> uploads = plan(parsed);
             if (parsed.dryRun) {
+                // A dry run READS everything the real run reads and writes nothing. It used to
+                // read nothing at all, on the view that a rehearsal should not touch the network
+                // — which cost two releases: the version list is fetched over HTTP, and fetching
+                // it is where a publish can fail without any file having been sent. Reading is
+                // not mutating, so the rehearsal can cover it, and now does.
+                List<Upload> finishing = finishing(parsed, versionList(parsed, out));
                 for (Upload upload : uploads) {
                     out.printf("PUT %s (%d bytes)%n", upload.url, upload.content.length);
                 }
-                // Named but not sized, and deliberately: its content is the repository's current
-                // version list with this version added, and a dry run does not ask the repository
-                // anything. Saying "6 files" and then sending 8 would be the dry run lying about
-                // the shape of the deploy, which is the one thing it exists not to do.
-                Coordinates coordinates = Coordinates.read(parsed.coordinates);
-                String metadataUrl = metadataUrl(parsed.repository, coordinates);
-                out.printf("PUT %s (the version list, merged with the repository's)%n", metadataUrl);
-                for (String extension : parsed.checksums) {
-                    out.printf("PUT %s.%s%n", metadataUrl, extension);
+                for (Upload upload : finishing) {
+                    out.printf("PUT %s (%d bytes)%n", upload.url, upload.content.length);
                 }
                 out.printf(
                         "%d files would be uploaded; nothing was sent.%n",
-                        uploads.size() + 1 + parsed.checksums.size());
+                        uploads.size() + finishing.size());
                 return 0;
             }
             return upload(parsed, uploads, out, err);
@@ -379,6 +378,53 @@ public final class Publisher {
                 + "/maven-metadata.xml";
     }
 
+    /**
+     * The repository's current version list, read the same way in a dry run and a real one.
+     *
+     * <p>Credentials are used if the environment has them and omitted if it does not: the list is
+     * public in every repository this targets, so a dry run works without a deploy token, which is
+     * what makes it something a person can run before they have one.
+     */
+    private static String versionList(Args parsed, PrintStream out) throws Exception {
+        Coordinates coordinates = Coordinates.read(parsed.coordinates);
+        if (isFileRepository(parsed.repository)) {
+            Path metadata = filePath(parsed.repository)
+                    .toAbsolutePath()
+                    .normalize()
+                    .resolve(relativeTo(parsed.repository, metadataUrl(parsed.repository, coordinates)))
+                    .normalize();
+            return Files.isRegularFile(metadata)
+                    ? Files.readString(metadata, StandardCharsets.UTF_8)
+                    : null;
+        }
+        HttpClient reader =
+                HttpClient.newBuilder()
+                        .followRedirects(HttpClient.Redirect.NEVER)
+                        .connectTimeout(Duration.ofSeconds(30))
+                        .build();
+        return fetch(reader, metadataUrl(parsed.repository, coordinates), Credentials.fromEnvironment());
+    }
+
+    /** The version list and its checksums: the uploads that finish a deploy. */
+    private static List<Upload> finishing(Args parsed, String existing)
+            throws IOException, PublishException {
+        Coordinates coordinates = Coordinates.read(parsed.coordinates);
+        byte[] metadata =
+                mergeMetadata(existing, coordinates, metadataTimestamp())
+                        .getBytes(StandardCharsets.UTF_8);
+        String url = metadataUrl(parsed.repository, coordinates);
+        List<Upload> finishing = new ArrayList<>();
+        finishing.add(new Upload(url, metadata, "text/xml"));
+        for (String extension : parsed.checksums) {
+            finishing.add(
+                    new Upload(
+                            url + "." + extension,
+                            hex(digest(CHECKSUMS.get(extension), metadata)),
+                            "text/plain"));
+        }
+        return finishing;
+    }
+
     private static int upload(Args parsed, List<Upload> uploads, PrintStream out, PrintStream err)
             throws Exception {
         if (isFileRepository(parsed.repository)) {
@@ -403,22 +449,12 @@ public final class Publisher {
             }
             // The version list, last and merged, for the same reason as over HTTP: a local
             // install is meant to look like what a repository would hold.
-            Coordinates coordinates = Coordinates.read(parsed.coordinates);
-            Path metadata =
-                    root.resolve(relativeTo(parsed.repository,
-                                    metadataUrl(parsed.repository, coordinates)))
-                            .normalize();
-            String existing = Files.isRegularFile(metadata) ? Files.readString(metadata, StandardCharsets.UTF_8) : null;
-            byte[] merged =
-                    mergeMetadata(existing, coordinates, metadataTimestamp())
-                            .getBytes(StandardCharsets.UTF_8);
-            Files.createDirectories(metadata.getParent());
-            Files.write(metadata, merged);
-            out.println("wrote " + metadata);
-            for (String extension : parsed.checksums) {
-                Path sibling = metadata.resolveSibling(metadata.getFileName() + "." + extension);
-                Files.write(sibling, hex(digest(CHECKSUMS.get(extension), merged)));
-                out.println("wrote " + sibling);
+            for (Upload upload : finishing(parsed, versionList(parsed, out))) {
+                Path destination =
+                        root.resolve(relativeTo(parsed.repository, upload.url)).normalize();
+                Files.createDirectories(destination.getParent());
+                Files.write(destination, upload.content);
+                out.println("wrote " + destination);
             }
             out.printf(
                     "installed %d files into %s%n",
@@ -464,22 +500,8 @@ public final class Publisher {
         // answered 201 and the version still never appears anywhere. Last, and merged into
         // whatever the repository already has, so it adds a version rather than replacing a
         // history.
-        Coordinates coordinates = Coordinates.read(parsed.coordinates);
-        String metadataUrl = metadataUrl(parsed.repository, coordinates);
-        String existing = fetch(client, metadataUrl, credentials);
-        byte[] metadata =
-                mergeMetadata(existing, coordinates, metadataTimestamp())
-                        .getBytes(StandardCharsets.UTF_8);
-
-        List<Upload> finishing = new ArrayList<>();
-        finishing.add(new Upload(metadataUrl, metadata, "text/xml"));
-        for (String extension : parsed.checksums) {
-            finishing.add(
-                    new Upload(
-                            metadataUrl + "." + extension,
-                            hex(digest(CHECKSUMS.get(extension), metadata)),
-                            "text/plain"));
-        }
+        String metadataUrl = metadataUrl(parsed.repository, Coordinates.read(parsed.coordinates));
+        List<Upload> finishing = finishing(parsed, fetch(client, metadataUrl, credentials));
         for (Upload upload : finishing) {
             HttpResponse<String> response = put(client, upload, credentials);
             int status = response.statusCode();
@@ -522,27 +544,57 @@ public final class Publisher {
      */
     private static String fetch(HttpClient client, String url, Credentials credentials)
             throws Exception {
-        HttpRequest request =
-                HttpRequest.newBuilder(URI.create(url))
-                        .header("Authorization", credentials.basic())
-                        .timeout(Duration.ofMinutes(1))
-                        .GET()
-                        .build();
-        HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
-        int status = response.statusCode();
-        if (status == 404) {
-            return null;
-        }
-        if (status < 200 || status >= 300) {
+        String current = url;
+        Credentials carried = credentials;
+        for (int hop = 0; hop <= 3; hop++) {
+            HttpRequest.Builder request =
+                    HttpRequest.newBuilder(URI.create(current)).timeout(Duration.ofMinutes(1)).GET();
+            if (carried != null) {
+                request.header("Authorization", carried.basic());
+            }
+            HttpResponse<String> response =
+                    client.send(request.build(), HttpResponse.BodyHandlers.ofString());
+            int status = response.statusCode();
+            if (status == 404) {
+                return null;
+            }
+            if (status >= 200 && status < 300) {
+                return response.body();
+            }
+            // A redirect on a READ is ordinary and has to be followed: Clojars answers
+            // clojars.org/repo — its deploy endpoint, which is the one configured — with a 302 to
+            // repo.clojars.org, the read mirror. The client's global policy is NEVER, deliberately,
+            // because a 3xx that moves an authenticated PUT elsewhere is worth a human's attention;
+            // that reasoning does not extend to fetching a public file.
+            //
+            // The credential is dropped at the first hop and not restored. A version list is public
+            // in every repository this targets, and the token exists to authorize writes — so a
+            // redirect must never be able to carry it to a host that was not the one configured.
+            if (isRedirect(status)) {
+                String location = response.headers().firstValue("location").orElse(null);
+                if (location == null) {
+                    throw new PublishException(
+                            "the repository answered " + status + " for " + current
+                                    + " without a Location to follow.");
+                }
+                current = URI.create(current).resolve(location).toString();
+                carried = null;
+                continue;
+            }
             throw new PublishException(
                     "could not read the repository\'s version list at "
-                            + url
+                            + current
                             + " (HTTP "
                             + status
                             + "). Publishing on top of a list this cannot read would drop the"
                             + " versions it holds, so nothing was sent.");
         }
-        return response.body();
+        throw new PublishException(
+                "the repository redirected the version list at " + url + " more than three times.");
+    }
+
+    private static boolean isRedirect(int status) {
+        return status == 301 || status == 302 || status == 303 || status == 307 || status == 308;
     }
 
     /**

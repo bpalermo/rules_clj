@@ -2,10 +2,10 @@
 
 Bazel rules for Clojure.
 
-> **Status: 0.2.2, in the [Bazel Central Registry](https://registry.bazel.build/modules/rules_clj).**
+> **Status: 0.2.3, in the [Bazel Central Registry](https://registry.bazel.build/modules/rules_clj).**
 > Compilation, tests, binaries, REPLs, `deps.edn` dependencies, BUILD generation,
 > ClojureScript, GraalVM native images and Maven publishing all work, on Bazel 8 and 9
-> across Linux and macOS. `bazel_dep(name = "rules_clj", version = "0.2.2")` is all a
+> across Linux and macOS. `bazel_dep(name = "rules_clj", version = "0.2.3")` is all a
 > consumer needs — protoc-gen-clojure, clj-protobuf and clj-grpc build with exactly that.
 >
 > **New in 0.2.0:** `clj_maven_export` publishes to Clojars from Bazel, so a library no
@@ -62,7 +62,7 @@ says so plainly instead of finding out later.
 
 ```starlark
 # MODULE.bazel
-bazel_dep(name = "rules_clj", version = "0.2.2")
+bazel_dep(name = "rules_clj", version = "0.2.3")
 ```
 
 ```starlark
