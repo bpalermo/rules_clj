@@ -48,26 +48,36 @@ final class Worker {
      * than a cold one for identical source. The worker target asks for {@code -XX:hashCode=2},
      * which makes every identity hash 1 and removes the variable.
      *
-     * <p>That flag is HotSpot-specific and guarded by {@code -XX:+IgnoreUnrecognizedVMOptions},
+     * <p>That flag pins IDENTITY hash codes — what {@code System.identityHashCode} returns,
+     * and what {@code Object.hashCode} returns for a class that does not override it. A class
+     * that computes its own hash, {@code String} for one, is unaffected.
+     *
+     * <p>The flag is HotSpot-specific and guarded by {@code -XX:+IgnoreUnrecognizedVMOptions},
      * so a JVM that does not have it still starts and still compiles — it just compiles
      * non-deterministically. Silently is the one thing that must not happen: a build whose
      * outputs vary is a build whose cache hits and image digests lie, and it is invisible
      * without a check. Hence this one, once, at startup.
      */
     private static void warnIfIdentityHashesAreNotPinned(PrintStream err) {
-        // Two objects, because one hash of 1 could be a coincidence on a JVM that hands them
-        // out sequentially; two in a row could not.
-        int first = new Object().hashCode();
-        int second = new Object().hashCode();
-        if (first == 1 && second == 1) {
-            return;
+        // An unpinned JVM can hand out 1 — it is a legal identity hash — and could hand it
+        // out twice, so a two-object probe can call an unpinned JVM pinned. Sampling many
+        // makes that vanishingly unlikely without making the check cost anything: under
+        // -XX:hashCode=2 every identity hash is 1, so a single value other than 1 is proof
+        // the pin is not in effect.
+        for (int i = 0; i < 256; i++) {
+            if (System.identityHashCode(new Object()) != 1) {
+                err.println(
+                        "rules_clj: this JVM does not honour -XX:hashCode=2, so compilation in"
+                            + " a persistent worker is not deterministic: identical sources can"
+                            + " produce different bytecode depending on what the worker compiled"
+                            + " before. Build with --@rules_clj//clojure:worker=false for"
+                            + " reproducible output.");
+                return;
+            }
         }
-        err.println(
-                "rules_clj: this JVM does not honour -XX:hashCode=2, so compilation in a"
-                    + " persistent worker is not deterministic: identical sources can produce"
-                    + " different bytecode depending on what the worker compiled before. Build"
-                    + " with --@rules_clj//clojure:worker=false for reproducible output.");
     }
+
+
 
     static void serve() throws IOException {
         warnIfIdentityHashesAreNotPinned(System.err);

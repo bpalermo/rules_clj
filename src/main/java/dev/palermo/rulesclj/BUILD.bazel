@@ -40,9 +40,11 @@ java_binary(
 # variable the emission order rides on.
 #
 # Experimental because HotSpot classifies it so, not because its behaviour is unclear:
-# hashCode=2 makes Object.hashCode() return 1 for everything. Nothing here depends on
-# identity hashes being distinct — the compiler runs, writes classes and exits — and the
-# cost is confined to maps keyed by identity inside one compile.
+# hashCode=2 makes every IDENTITY hash 1 — what System.identityHashCode returns, and what
+# Object.hashCode returns for a class that does not override it. A class that computes its
+# own hash, String for one, is untouched. Nothing here depends on identity hashes being
+# distinct: the compiler runs, writes classes and exits. The cost is confined to maps keyed
+# by identity inside one compile, where every key now collides.
 java_binary(
     name = "worker",
     args = ["--persistent_worker"],
