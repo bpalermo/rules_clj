@@ -21,11 +21,19 @@
     (is (= [:caller :jarred] (caller/value)))))
 
 (deftest the-classes-are-what-loaded
-  (testing "compiling put a class file on the classpath, and the loader took it over
-            the source in the jar — Jars stamps classes later than sources so the
-            class wins even when both are present"
-    (is (some? (.getResource (.getContextClassLoader (Thread/currentThread))
-                             "conformance/jarred__init.class")))))
+  (let [loader (.getContextClassLoader (Thread/currentThread))]
+    (testing "both forms of the namespace are on the classpath, so the loader had a
+              choice to make: the source jar this fixture packages, and the classes
+              the srcs-less clj_library compiled out of it"
+      (is (some? (.getResource loader "conformance/jarred.clj")))
+      (is (some? (.getResource loader "conformance/jarred__init.class"))))
+    (testing "and it took the class. A namespace Clojure compiles at load time gets a
+              DynamicClassLoader; one loaded from a class file on the classpath does
+              not, so the fn's own classloader is what distinguishes them. Jars stamps
+              classes later than sources for exactly this reason — Clojure prefers the
+              source when it looks newer."
+      (is (not (instance? clojure.lang.DynamicClassLoader
+                          (.getClassLoader (class @#'jarred/value))))))))
 
 (deftest the-call-is-linked
   (testing "redefinition does not reach a direct-linked call site, which is the whole
