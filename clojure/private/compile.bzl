@@ -46,7 +46,8 @@ def compile_namespaces(
         resources,
         strip_prefix,
         deps,
-        clojure_runtime):
+        clojure_runtime,
+        direct_linking = "auto"):
     """Compiles namespaces ahead of time and packages the classes into a jar.
 
     Args:
@@ -58,6 +59,7 @@ def compile_namespaces(
       strip_prefix: prefix removed when computing classpath roots and jar entries.
       deps: JavaInfos the namespaces need in order to load.
       clojure_runtime: JavaInfo for the Clojure runtime the toolchain selected.
+      direct_linking: "on", "off", or "auto" to follow //clojure:direct_linking.
     """
     jdk = ctx.attr._jdk[java_common.JavaRuntimeInfo]
     shim = ctx.file._aot
@@ -100,6 +102,11 @@ def compile_namespaces(
     args.add("--classes-dir=" + output.path + ".classes")
     args.add_all(namespaces, format_each = "--namespace=%s")
     args.add_all(resource_flags, format_each = "--resource=%s")
+
+    if direct_linking == "auto":
+        direct_linking = ctx.attr._direct_linking[BuildSettingInfo].value
+    if direct_linking == "on":
+        args.add("--direct-linking=true")
 
     # Always a param file, and one that holds exactly the request. Bazel hands its
     # contents to the worker as the work request, and passes anything left on the command
@@ -176,4 +183,5 @@ COMPILE_ATTRS = {
         cfg = "exec",
     ),
     "_worker_mode": attr.label(default = Label("//clojure:worker")),
+    "_direct_linking": attr.label(default = Label("//clojure:direct_linking")),
 }

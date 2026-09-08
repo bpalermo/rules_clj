@@ -4,6 +4,10 @@ clj_library(
     name = "aot_test_lib",
     testonly = True,
     srcs = ["aot_test.clj"],
+    # This suite exists partly to prove that a compiled namespace can call one that
+    # ships as source, which is exactly what a direct-linked call cannot do. Opted out
+    # explicitly so that a build-wide --//clojure:direct_linking=on still runs it.
+    direct_linking = "off",
     namespaces = ["conformance.aot-test"],
     strip_prefix = "tests/conformance/test",
     deps = [
@@ -23,3 +27,31 @@ clj_test(
     ns = "conformance.aot-test",
     deps = [":aot_test_lib"],
 )
+
+# One test namespace, two targets: the caller namespace exists in two flavours and
+# only one may be on a classpath at a time. The property tells the test which it got.
+[
+    [
+        clj_library(
+            name = "direct_linking_test_lib_" + mode,
+            testonly = True,
+            srcs = ["direct_linking_test.clj"],
+            namespaces = ["conformance.direct-linking-test"],
+            strip_prefix = "tests/conformance/test",
+            deps = [
+                "//tests/conformance/src/conformance:linked_callee",
+                "//tests/conformance/src/conformance:linked_caller_" + mode,
+            ],
+        ),
+        clj_test(
+            name = "direct_linking_" + mode + "_test",
+            jvm_flags = ["-Dconformance.direct-linking=" + mode],
+            ns = "conformance.direct-linking-test",
+            deps = [":direct_linking_test_lib_" + mode],
+        ),
+    ]
+    for mode in [
+        "off",
+        "on",
+    ]
+]
