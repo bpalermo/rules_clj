@@ -69,6 +69,11 @@ string_flag(
 # clj-protobuf's compiled codec, `clojure.lang.Var.getRawRoot` accounted for 3.2% of a
 # gRPC server's CPU samples, all of it cross-namespace defn calls.
 #
+# A linked target may not call into a namespace that ships as source: the call names a
+# class that only exists once the callee is loaded. That covers `aot = False` targets
+# (caught during analysis) and source-only Maven jars, which is most of Clojars (caught
+# by the shim, on the emitted bytecode, so an uncalled namespace is not an obstacle).
+#
 # Set per target with the `direct_linking` attribute, which defaults to "auto" and
 # follows this flag.
 string_flag(

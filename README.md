@@ -109,10 +109,15 @@ replace.
 
 Worth turning on for a library whose functions run in a hot loop — each cross-namespace
 `defn` call otherwise costs a `Var.getRawRoot`, measured at 3.2% of the CPU samples of a
-gRPC server built on these rules. A target with it on may not depend on a target with
-`aot = False`: a direct call names the callee's class, which only exists if the callee was
-compiled, and the rules fail the build rather than let it become a `NoClassDefFoundError`
-on the first call.
+gRPC server built on these rules.
+
+A direct call names the callee's class, which exists as a file only if the callee was
+compiled ahead of time. So a linked target cannot call into a namespace that ships as
+source — neither a target with `aot = False` (rejected during analysis, naming both
+labels) nor a Clojure library published to Maven as source, which is most of them
+(rejected by the compiler shim, naming the namespace). Either compile the callee or set
+`direct_linking = "off"`; the check is on the emitted bytecode, so a namespace that is
+merely on the classpath and never called is not an obstacle.
 
 ## Publishing
 
