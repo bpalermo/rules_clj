@@ -95,6 +95,14 @@ string_flag(
 # Turn it off to compare, or when debugging a compile that misbehaves: without the
 # worker each action is an ordinary short-lived JVM, which is easier to reason about and
 # to run by hand.
+#
+# Determinism note: a warm JVM emits different bytecode for identical source, because
+# Clojure's compiler orders locals-clearing instructions by walking maps keyed on
+# identity hash codes, and HotSpot draws those from a per-thread PRNG whose sequence
+# depends on how much the JVM has already done. The worker JVM therefore pins the hash
+# (-XX:hashCode=2) so its output does not depend on what it compiled before; without
+# that, the same source built twice produced jars differing in a dozen anonymous fn
+# classes. See //src/main/java/dev/palermo/rulesclj:worker.
 bool_flag(
     name = "worker",
     build_setting_default = True,

@@ -30,9 +30,26 @@ java_binary(
 
 # The same code as :aot, started in worker mode by Bazel. A separate target because a
 # worker's executable is the thing Bazel launches once and then feeds requests to.
+# A warm JVM is what the worker is for, and it is also what made its output
+# non-deterministic: Clojure's compiler emits locals-clearing instructions by walking
+# maps keyed on objects that use identity hash codes, and HotSpot's identity hashes come
+# from a per-thread PRNG whose sequence depends on how much the JVM has already done.
+# A fresh JVM per action replays the same sequence and emits the same bytes; a warm one
+# does not, so the same source compiled after different neighbours produced jars
+# differing in a dozen anonymous fn classes. Pinning the hash to a constant removes the
+# variable the emission order rides on.
+#
+# Experimental because HotSpot classifies it so, not because its behaviour is unclear:
+# hashCode=2 makes Object.hashCode() return 1 for everything. Nothing here depends on
+# identity hashes being distinct — the compiler runs, writes classes and exits — and the
+# cost is confined to maps keyed by identity inside one compile.
 java_binary(
     name = "worker",
     args = ["--persistent_worker"],
+    jvm_flags = [
+        "-XX:+UnlockExperimentalVMOptions",
+        "-XX:hashCode=2",
+    ],
     main_class = "dev.palermo.rulesclj.Aot",
     runtime_deps = [":aot_lib"],
 )
