@@ -55,3 +55,21 @@ clj_test(
         "on",
     ]
 ]
+
+clj_library(
+    name = "source_jar_test_lib",
+    testonly = True,
+    srcs = ["source_jar_test.clj"],
+    namespaces = ["conformance.source-jar-test"],
+    strip_prefix = "tests/conformance/test",
+    deps = [
+        "//tests/conformance/src/conformance:jarred_caller_linked",
+        "//tests/conformance/src/conformance:jarred_compiled",
+    ],
+)
+
+clj_test(
+    name = "source_jar_test",
+    ns = "conformance.source-jar-test",
+    deps = [":source_jar_test_lib"],
+)

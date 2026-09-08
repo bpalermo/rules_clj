@@ -119,6 +119,23 @@ labels) nor a Clojure library published to Maven as source, which is most of the
 `direct_linking = "off"`; the check is on the emitted bytecode, so a namespace that is
 merely on the classpath and never called is not an obstacle.
 
+To link into a library that ships as source — which is how nearly everything on Clojars
+is published — compile its namespaces in your own build, against your own Clojure:
+
+```starlark
+clj_library(
+    name = "some_library_compiled",
+    namespaces = ["some.library.core", "some.library.impl"],   # all of them, not just the ones you call
+    deps = ["@deps//:some_library"],                            # the jar its sources come from
+)
+```
+
+A `clj_library` with no `srcs` takes its sources from the classpath, so this emits the
+library's classes into your build and anything depending on it can be linked. The
+compiled classes win over the jar's sources at load time — jars written by these rules
+stamp classes later than sources for exactly that reason — so the original jar may stay
+on the classpath for its resources and transitive dependencies.
+
 ## Publishing
 
 A Clojure library that builds with Bazel usually still carries a `build.clj`, a `:build`

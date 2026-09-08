@@ -5,6 +5,7 @@ so the boundaries these tests care about — a protocol's interface, a deftype's
 a macro's availability — are real rather than simulated by a single big compile.
 """
 
+load("@rules_java//java:defs.bzl", "java_import")
 load("//clojure:defs.bzl", "clj_library")
 
 package(default_visibility = ["//tests/conformance:__subpackages__"])
@@ -131,4 +132,37 @@ clj_library(
     namespaces = ["conformance.linked-caller"],
     strip_prefix = "tests/conformance/src",
     deps = [":linked_callee"],
+)
+
+# A stand-in for a Clojure library published to Maven: sources in a jar, no classes.
+# Built here rather than pulled from a repository so the test does not depend on the
+# network or on someone else's release staying source-only.
+genrule(
+    name = "jarred_source_jar",
+    srcs = ["jarred.clj"],
+    outs = ["jarred-sources.jar"],
+    cmd = "$(location @bazel_tools//tools/zip:zipper) c $@ conformance/jarred.clj=$(location jarred.clj)",
+    tools = ["@bazel_tools//tools/zip:zipper"],
+)
+
+java_import(
+    name = "jarred_jar",
+    jars = ["jarred-sources.jar"],
+)
+
+# Compiling a namespace out of that jar: no srcs, the sources come from the dep. This
+# is what lets a consumer link into a library that ships as source — see #18.
+clj_library(
+    name = "jarred_compiled",
+    namespaces = ["conformance.jarred"],
+    deps = [":jarred_jar"],
+)
+
+clj_library(
+    name = "jarred_caller_linked",
+    srcs = ["jarred_caller.clj"],
+    direct_linking = "on",
+    namespaces = ["conformance.jarred-caller"],
+    strip_prefix = "tests/conformance/src",
+    deps = [":jarred_compiled"],
 )
