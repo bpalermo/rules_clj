@@ -15,6 +15,7 @@ java_library(
     name = "aot_lib",
     srcs = [
         "Aot.java",
+        "ClassRefs.java",
         "Jars.java",
         "Json.java",
         "Worker.java",

@@ -94,3 +94,34 @@
                                                 "--namespace=guard.nope"]})]
     (is (pos? exit))
     (is (str/includes? output "compiling guard.nope"))))
+
+(deftest direct-linking-refuses-a-source-only-callee
+  (testing "a namespace that ships as source cannot be linked into: the emitted call
+            names a class that only exists once the callee is loaded, so the shim
+            reports it here rather than leaving a NoClassDefFoundError for the first
+            call at runtime. This is the shape of every Clojure library published to
+            Maven as source, which the analysis-time check on `aot` cannot see."
+    (let [src (write-sources! (temp-dir "guard-src"))
+          out (str (temp-dir "guard-out") "/root.jar")
+          {:keys [exit output]} (run-shim {:classpath-prefix [src]
+                                           :args [(str "--output=" out)
+                                                  "--direct-linking=true"
+                                                  "--namespace=guard.root"]})]
+      (is (pos? exit))
+      (is (str/includes? output "ship as source"))
+      (is (str/includes? output "guard.leaf")
+          "the message should name the namespace that cannot be linked into")))
+
+  (testing "the same compile succeeds when the callee is compiled first, which is what
+            a dependency on another rules_clj target gives you"
+    (let [src (write-sources! (temp-dir "guard-src"))
+          leaf-classes (temp-dir "guard-leaf-classes")
+          _ (run-shim {:classpath-prefix [src]
+                       :args [(str "--output=" (str (temp-dir "guard-out") "/leaf.jar"))
+                              (str "--classes-dir=" leaf-classes)
+                              "--namespace=guard.leaf"]})
+          {:keys [exit output]} (run-shim {:classpath-prefix [leaf-classes src]
+                                           :args [(str "--output=" (str (temp-dir "guard-out") "/root.jar"))
+                                                  "--direct-linking=true"
+                                                  "--namespace=guard.root"]})]
+      (is (zero? exit) output))))

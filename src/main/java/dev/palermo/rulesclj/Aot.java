@@ -14,6 +14,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -79,6 +80,9 @@ public final class Aot {
             }
 
             verifyOnlyRequestedNamespaces(classes, parsed.namespaces);
+            if (parsed.directLinking) {
+                clojure.verifyDirectCallsResolve(classes);
+            }
 
             Map<String, Path> entries = new LinkedHashMap<>(parsed.resources);
             for (Path classFile : walk(classes)) {
@@ -213,6 +217,73 @@ public final class Aot {
             this.invoke1 = Class.forName("clojure.lang.IFn", true, loader).getMethod("invoke", Object.class);
             this.eval = var.invoke(null, "clojure.core", "eval");
             this.readString = var.invoke(null, "clojure.core", "read-string");
+        }
+
+        /**
+         * Fails when a direct-linked call names a class that will not exist at runtime.
+         *
+         * <p>Direct linking emits `foo.bar$baz` as a static reference. That class is a real
+         * file only if `foo.bar` was compiled ahead of time; a namespace that ships as
+         * source — a target with `aot = False`, or the great majority of Clojure libraries
+         * on Maven — is compiled at load time into a classloader of its own, which the
+         * loader that loaded the caller cannot see. The result is a NoClassDefFoundError on
+         * the first call, far from the two targets that disagree.
+         *
+         * <p>Checked here, on the bytecode, rather than by inspecting jars for source: a jar
+         * scan cannot tell a namespace the target calls from one it merely ships beside
+         * (clojure.jar carries `clojure/parallel.clj` with no class file, and nothing calls
+         * it). Every CONSTANT_Class the compiler emitted is looked up exactly as the JVM
+         * will look it up, so what is reported is what would actually fail.
+         */
+        void verifyDirectCallsResolve(Path classes) throws IOException {
+            Set<String> emitted = new TreeSet<>();
+            for (Path classFile : walk(classes)) {
+                String rel = relative(classes, classFile);
+                emitted.add(rel.substring(0, rel.length() - ".class".length()));
+            }
+            Map<String, Set<String>> missing = new TreeMap<>();
+            for (Path classFile : walk(classes)) {
+                for (String referenced : ClassRefs.of(classFile)) {
+                    if (emitted.contains(referenced)
+                            || referenced.startsWith("java/")
+                            || referenced.startsWith("javax/")
+                            || referenced.startsWith("jdk/")
+                            || referenced.startsWith("[")
+                            || loader.getResource(referenced + ".class") != null) {
+                        continue;
+                    }
+                    // Only Clojure-shaped names are interesting: `ns$fn`, `ns__init`. A
+                    // missing Java class is someone's missing dep, which the compile
+                    // itself would already have failed on.
+                    int dollar = referenced.indexOf('$');
+                    if (dollar < 0 && !referenced.endsWith("__init")) {
+                        continue;
+                    }
+                    String owner = dollar >= 0 ? referenced.substring(0, dollar) : referenced;
+                    missing.computeIfAbsent(demunge(owner.replace("__init", "")),
+                                    k -> new TreeSet<>())
+                            .add(referenced);
+                }
+            }
+            if (missing.isEmpty()) {
+                return;
+            }
+            StringBuilder message =
+                    new StringBuilder(
+                            "direct linking emitted calls into namespaces that ship as source, "
+                                    + "so they would fail at runtime with NoClassDefFoundError:");
+            missing.forEach(
+                    (namespace, refs) ->
+                            message.append("\n  ")
+                                    .append(namespace)
+                                    .append("  (")
+                                    .append(refs.iterator().next())
+                                    .append(refs.size() > 1 ? ", +" + (refs.size() - 1) + " more" : "")
+                                    .append(")"));
+            message.append(
+                    "\nCompile those namespaces ahead of time, or set direct_linking = \"off\"."
+                            + " A Clojure library published as source cannot be linked into.");
+            throw new IllegalStateException(message.toString());
         }
 
         @Override
