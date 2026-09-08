@@ -75,7 +75,7 @@ public final class Aot {
         Clojure clojure = new Clojure(parsed.classpath);
         try {
             for (String namespace : parsed.namespaces) {
-                clojure.compileNamespace(namespace, classes);
+                clojure.compileNamespace(namespace, classes, parsed.directLinking);
             }
 
             verifyOnlyRequestedNamespaces(classes, parsed.namespaces);
@@ -229,10 +229,22 @@ public final class Aot {
          * is a great deal of ceremony for no gain. The form is built here rather than shipped as a
          * {@code .clj} resource so that this shim adds no namespace to the user's classpath.
          */
-        void compileNamespace(String namespace, Path classes) throws Exception {
+        void compileNamespace(String namespace, Path classes, boolean directLinking)
+                throws Exception {
+            // Direct linking is bound per request rather than set as a system property,
+            // which is what makes it safe under the persistent worker: a property would
+            // be global to the worker JVM and would leak into every target it served
+            // afterwards, so one target's attribute would silently change another's
+            // bytecode. `*compiler-options*` is a dynamic var the compiler consults, so
+            // a binding here covers exactly this namespace's compile.
+            String compilerOptions =
+                    directLinking
+                            ? " *compiler-options* (assoc *compiler-options* :direct-linking true)"
+                            : "";
             String form =
                     "(binding [*compile-path* "
                             + literal(classes.toString())
+                            + compilerOptions
                             + "]"
                             + "  (require (quote "
                             + namespace
@@ -298,6 +310,7 @@ public final class Aot {
         Path output;
         Path classesDir;
         boolean warmup;
+        boolean directLinking;
         final List<String> classpath = new ArrayList<>();
         final List<String> namespaces = new ArrayList<>();
         final Map<String, Path> resources = new LinkedHashMap<>();
@@ -323,6 +336,7 @@ public final class Aot {
                         }
                     }
                     case "warmup" -> args.warmup = Boolean.parseBoolean(value);
+                    case "direct-linking" -> args.directLinking = Boolean.parseBoolean(value);
                     case "resource" -> {
                         // entry-in-jar=path-on-disk; the path may itself contain '='.
                         int split = value.indexOf('=');

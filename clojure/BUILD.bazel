@@ -54,6 +54,32 @@ string_flag(
     ],
 )
 
+# Whether AOT compilation emits direct calls between namespaces.
+#
+#   off  every cross-namespace call goes through the callee's Var — THE DEFAULT
+#   on   calls are emitted as static invocations, skipping the Var deref
+#
+# Off by default because it changes runtime semantics, not just speed: a direct-linked
+# call site does not see a later redefinition of the callee, so `with-redefs`, mocking,
+# and REPL reloading stop working THROUGH such a call. Vars marked `^:dynamic` and
+# functions marked `^:redef` are never direct-linked, which is how a library keeps a
+# hook it wants callers to be able to replace.
+#
+# Worth turning on for a library whose functions are called in a hot loop: measured on
+# clj-protobuf's compiled codec, `clojure.lang.Var.getRawRoot` accounted for 3.2% of a
+# gRPC server's CPU samples, all of it cross-namespace defn calls.
+#
+# Set per target with the `direct_linking` attribute, which defaults to "auto" and
+# follows this flag.
+string_flag(
+    name = "direct_linking",
+    build_setting_default = "off",
+    values = [
+        "off",
+        "on",
+    ],
+)
+
 # Whether compile actions go through a Bazel persistent worker.
 #
 # On by default: a worker keeps one JVM alive across targets, which removes JVM startup

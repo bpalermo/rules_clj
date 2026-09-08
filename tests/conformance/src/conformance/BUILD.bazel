@@ -103,3 +103,32 @@ clj_library(
     namespaces = ["conformance.interpreted"],
     strip_prefix = "tests/conformance/src",
 )
+
+# The direct-linking fixture: one callee, and the same caller source compiled both
+# ways. Two targets rather than a flag flip, so one test can observe both.
+clj_library(
+    name = "linked_callee",
+    srcs = ["linked_callee.clj"],
+    namespaces = ["conformance.linked-callee"],
+    strip_prefix = "tests/conformance/src",
+)
+
+clj_library(
+    name = "linked_caller_off",
+    srcs = ["linked_caller.clj"],
+    direct_linking = "off",
+    namespaces = ["conformance.linked-caller"],
+    strip_prefix = "tests/conformance/src",
+    deps = [":linked_callee"],
+)
+
+# Same source, same namespace: only one of these two may be on a classpath at a time,
+# which is why the test that uses them runs them in separate targets.
+clj_library(
+    name = "linked_caller_on",
+    srcs = ["linked_caller.clj"],
+    direct_linking = "on",
+    namespaces = ["conformance.linked-caller"],
+    strip_prefix = "tests/conformance/src",
+    deps = [":linked_callee"],
+)

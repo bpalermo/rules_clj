@@ -96,6 +96,24 @@ toolchain, no Maven resolver involved. Override it by registering your own `clj_
 `deftest` and the line rather than just the target. See [`examples/hello`](examples/hello) for a
 module that builds, runs and tests.
 
+### Direct linking
+
+`direct_linking = "on"` compiles a target's cross-namespace calls as direct invocations
+instead of Var derefs, and `--//clojure:direct_linking=on` does it build-wide (the
+attribute defaults to `"auto"`, which follows the flag). It is off by default because it
+changes semantics, not only speed: a direct-linked call site keeps calling the definition
+that was there at compile time, so `with-redefs`, mocking and REPL reloading stop taking
+effect *through* that call. Vars marked `^:dynamic` and functions marked `^:redef` are
+never linked directly, which is how a namespace keeps the hooks its callers are meant to
+replace.
+
+Worth turning on for a library whose functions run in a hot loop — each cross-namespace
+`defn` call otherwise costs a `Var.getRawRoot`, measured at 3.2% of the CPU samples of a
+gRPC server built on these rules. A target with it on may not depend on a target with
+`aot = False`: a direct call names the callee's class, which only exists if the callee was
+compiled, and the rules fail the build rather than let it become a `NoClassDefFoundError`
+on the first call.
+
 ## Publishing
 
 A Clojure library that builds with Bazel usually still carries a `build.clj`, a `:build`
