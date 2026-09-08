@@ -47,6 +47,12 @@ java_binary(
     name = "worker",
     args = ["--persistent_worker"],
     jvm_flags = [
+        # A JVM without these flags must still start: they are HotSpot's, the exec JDK is
+        # whatever a consumer registered, and a compiler that refuses to run is worse than
+        # one that runs non-deterministically. What must not happen is losing determinism
+        # silently, so the worker checks at startup whether the pin took and says so if it
+        # did not — see Worker.warnIfIdentityHashesAreNotPinned.
+        "-XX:+IgnoreUnrecognizedVMOptions",
         "-XX:+UnlockExperimentalVMOptions",
         "-XX:hashCode=2",
     ],

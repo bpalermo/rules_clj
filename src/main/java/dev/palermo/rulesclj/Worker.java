@@ -38,7 +38,39 @@ import java.util.Map;
  */
 final class Worker {
 
+    /**
+     * Whether this JVM pins identity hash codes, which is what makes a warm worker's output
+     * deterministic.
+     *
+     * <p>Clojure's compiler emits locals-clearing instructions by walking maps keyed on objects
+     * that use identity hash codes. HotSpot draws those from a per-thread PRNG whose sequence
+     * depends on how much the JVM has already done, so a warm worker emits different bytecode
+     * than a cold one for identical source. The worker target asks for {@code -XX:hashCode=2},
+     * which makes every identity hash 1 and removes the variable.
+     *
+     * <p>That flag is HotSpot-specific and guarded by {@code -XX:+IgnoreUnrecognizedVMOptions},
+     * so a JVM that does not have it still starts and still compiles — it just compiles
+     * non-deterministically. Silently is the one thing that must not happen: a build whose
+     * outputs vary is a build whose cache hits and image digests lie, and it is invisible
+     * without a check. Hence this one, once, at startup.
+     */
+    private static void warnIfIdentityHashesAreNotPinned(PrintStream err) {
+        // Two objects, because one hash of 1 could be a coincidence on a JVM that hands them
+        // out sequentially; two in a row could not.
+        int first = new Object().hashCode();
+        int second = new Object().hashCode();
+        if (first == 1 && second == 1) {
+            return;
+        }
+        err.println(
+                "rules_clj: this JVM does not honour -XX:hashCode=2, so compilation in a"
+                    + " persistent worker is not deterministic: identical sources can produce"
+                    + " different bytecode depending on what the worker compiled before. Build"
+                    + " with --@rules_clj//clojure:worker=false for reproducible output.");
+    }
+
     static void serve() throws IOException {
+        warnIfIdentityHashesAreNotPinned(System.err);
         PrintStream realStdout = System.out;
         Reader in = new BufferedReader(new InputStreamReader(System.in, StandardCharsets.UTF_8));
 
