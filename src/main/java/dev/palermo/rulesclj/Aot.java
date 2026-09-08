@@ -281,8 +281,10 @@ public final class Aot {
                                     .append(refs.size() > 1 ? ", +" + (refs.size() - 1) + " more" : "")
                                     .append(")"));
             message.append(
-                    "\nCompile those namespaces ahead of time, or set direct_linking = \"off\"."
-                            + " A Clojure library published as source cannot be linked into.");
+                    "\nEither set direct_linking = \"off\" here, or compile those namespaces in"
+                            + " this build: a clj_library with no srcs, whose namespaces are"
+                            + " listed and whose deps include the jar carrying their sources,"
+                            + " emits their classes and can then be linked into.");
             throw new IllegalStateException(message.toString());
         }
 

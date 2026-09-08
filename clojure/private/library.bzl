@@ -136,7 +136,12 @@ file outside the prefix is an error rather than a silently unloadable jar.""",
             doc = """Namespaces this target provides, and — unless `aot` is off — compiles.
 
 Declared rather than inferred: inferring it means parsing source during analysis,
-which Bazel does not allow.""",
+which Bazel does not allow.
+
+They need not come from `srcs`. A target with no `srcs` compiles the namespaces it
+names out of whatever on its classpath provides them, which is how a library that
+ships as source — a jar from Maven, say — gets compiled in your build, against your
+Clojure, so that direct linking can reach it.""",
         ),
         "aot": attr.bool(
             doc = """Compile the declared namespaces ahead of time. On by default.
